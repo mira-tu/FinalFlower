@@ -1,0 +1,162 @@
+/* Navigation */
+.navbar {
+    background-color: white;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    padding: 15px 0;
+}
+
+.navbar-brand img {
+    height: 40px;
+    margin-right: 10px;
+}
+
+.navbar-brand span {
+    font-weight: 700;
+    color: var(--main-pink);
+    font-size: 1.2rem;
+}
+
+.nav-link {
+    color: var(--text-dark);
+    font-weight: 500;
+    margin: 0 10px;
+    transition: color 0.3s;
+}
+
+.nav-link:hover,
+.nav-link.active {
+    color: var(--main-pink);
+}
+
+.nav-icons .btn-icon {
+    color: var(--text-dark);
+    font-size: 1.2rem;
+    margin-left: 15px;
+    text-decoration: none;
+    transition: color 0.3s;
+    position: relative;
+}
+
+.nav-icons .btn-icon:hover {
+    color: var(--main-pink);
+}
+
+.badge-count {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background-color: var(--main-pink);
+    color: white;
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 50%;
+}
+
+.services-menu {
+    min-width: 220px;
+    border-radius: 12px;
+    padding: 8px 0;
+}
+
+.services-menu .dropdown-item {
+    font-weight: 500;
+    padding: 10px 18px;
+    border-radius: 8px;
+}
+
+.services-menu .dropdown-item:hover {
+    background-color: rgba(240, 123, 150, 0.1);
+}
+
+/* ============================================
+   Mobile Responsive Styles
+   ============================================ */
+@media (max-width: 768px) {
+    .navbar {
+        padding: 10px 0;
+    }
+
+    .navbar .container-fluid {
+        padding-left: 20px !important;
+        padding-right: 20px !important;
+    }
+
+    .navbar-brand img {
+        height: 35px;
+        margin-right: 8px;
+    }
+
+    .navbar-brand span {
+        font-size: 1rem;
+    }
+
+    .nav-link {
+        margin: 0 5px;
+        font-size: 0.9rem;
+        padding: 8px 0;
+    }
+
+    .nav-icons {
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+
+    .nav-icons .btn-icon {
+        margin-left: 8px;
+        font-size: 1rem;
+    }
+
+    .badge-count {
+        font-size: 0.65rem;
+        padding: 2px 5px;
+        top: -6px;
+        right: -6px;
+    }
+
+    .services-menu {
+        min-width: 200px;
+    }
+
+    .services-menu .dropdown-item {
+        padding: 8px 15px;
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .navbar {
+        padding: 8px 0;
+    }
+
+    .navbar .container-fluid {
+        padding-left: 15px !important;
+        padding-right: 15px !important;
+    }
+
+    .navbar-brand span {
+        font-size: 0.9rem;
+    }
+
+    .nav-link {
+        font-size: 0.85rem;
+        margin: 0 3px;
+    }
+
+    .nav-icons {
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 10px;
+    }
+
+    .nav-icons .btn-icon {
+        margin-left: 5px;
+        font-size: 0.95rem;
+    }
+
+    .btn-outline-danger {
+        font-size: 0.85rem;
+        padding: 5px 12px;
+        margin-left: 0 !important;
+        margin-top: 5px;
+    }
+}
