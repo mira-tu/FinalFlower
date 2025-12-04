@@ -7,33 +7,62 @@ import {
   StyleSheet,
   Alert,
   SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import { authAPI } from '../config/api';
 
 const LoginScreen = () => {
   const navigation = useNavigation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    // Simple login - you can enhance this
-    if (email && password) {
-      const user = {
-        id: '1',
-        name: 'Admin User',
-        email: email,
-        role: 'admin', // Change to 'employee' to test employee view
-      };
-      
-      try {
-        await AsyncStorage.setItem('currentUser', JSON.stringify(user));
-        navigation.navigate('AdminDashboard');
-      } catch (error) {
-        Alert.alert('Error', 'Failed to save user data');
-      }
-    } else {
+    if (!email || !password) {
       Alert.alert('Error', 'Please enter email and password');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      console.log('Attempting login to:', 'http://192.168.111.74:5000/api/auth/admin/login');
+      console.log('Email:', email);
+
+      const response = await authAPI.adminLogin({ email, password });
+      const { user, token } = response.data;
+
+      console.log('Login successful!', user);
+
+      // Save token and user data
+      await AsyncStorage.setItem('token', token);
+      await AsyncStorage.setItem('currentUser', JSON.stringify(user));
+
+      // Navigate to dashboard
+      navigation.navigate('AdminDashboard');
+    } catch (error) {
+      console.error('Full error:', error);
+      console.error('Error response:', error.response);
+      console.error('Error message:', error.message);
+
+      let errorMessage = 'Could not connect to server. ';
+
+      if (error.response) {
+        // Server responded with error
+        errorMessage = error.response.data?.message || 'Invalid credentials';
+      } else if (error.request) {
+        // Request made but no response
+        errorMessage = 'No response from server. Check your connection.';
+      } else {
+        // Something else happened
+        errorMessage = error.message || 'An error occurred';
+      }
+
+      Alert.alert('Login Failed', errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -45,7 +74,7 @@ const LoginScreen = () => {
           <Text style={styles.title}>Admin Login</Text>
         </View>
         <Text style={styles.subtitle}>FlowerForge Admin Dashboard</Text>
-        
+
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -55,8 +84,9 @@ const LoginScreen = () => {
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
+          editable={!loading}
         />
-        
+
         <TextInput
           style={styles.input}
           placeholder="Password"
@@ -64,13 +94,22 @@ const LoginScreen = () => {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          editable={!loading}
         />
-        
-        <TouchableOpacity style={styles.button} onPress={handleLogin}>
-          <Text style={styles.buttonText}>Login</Text>
+
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
+          onPress={handleLogin}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Login</Text>
+          )}
         </TouchableOpacity>
-        
-        <Text style={styles.hint}>Enter any email and password to login</Text>
+
+        <Text style={styles.hint}>Use: admin@flower.com / pa55w0rd</Text>
       </View>
     </SafeAreaView>
   );
@@ -140,13 +179,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   hint: {
     marginTop: 20,
     textAlign: 'center',
     color: '#9ca3af',
-    fontSize: 12,
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 
 export default LoginScreen;
-

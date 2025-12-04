@@ -111,7 +111,7 @@ const Home = ({ addToCart }) => {
                 console.error('Error parsing wishlist:', e);
             }
         }
-        
+
         // Load products from admin catalogue if available
         const catalogueProducts = JSON.parse(localStorage.getItem('catalogueProducts') || '[]');
         if (catalogueProducts.length > 0) {
@@ -142,10 +142,10 @@ const Home = ({ addToCart }) => {
     const toggleWishlist = (product, e) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         const isInWishlist = wishlist.some(item => item.name === product.name);
         let newWishlist;
-        
+
         if (isInWishlist) {
             newWishlist = wishlist.filter(item => item.name !== product.name);
             setPopupMessage('Removed from Wishlist');
@@ -153,10 +153,10 @@ const Home = ({ addToCart }) => {
             newWishlist = [...wishlist, { name: product.name, price: product.price, image: product.image }];
             setPopupMessage('Added to Wishlist');
         }
-        
+
         setWishlist(newWishlist);
         localStorage.setItem('wishlist', JSON.stringify(newWishlist));
-        
+
         setShowWishlistPopup(true);
         setTimeout(() => setShowWishlistPopup(false), 2000);
     };
@@ -253,7 +253,7 @@ const Home = ({ addToCart }) => {
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                         {searchTerm && (
-                            <button 
+                            <button
                                 className="search-clear"
                                 onClick={() => setSearchTerm('')}
                             >
@@ -289,7 +289,7 @@ const Home = ({ addToCart }) => {
                                     <Link to={`/product/${product.id}`}>
                                         <div className="product-img-wrapper">
                                             <img src={product.image} alt={product.name} />
-                                            <button 
+                                            <button
                                                 className={`wishlist-heart-btn ${isInWishlist(product.name) ? 'active' : ''}`}
                                                 onClick={(e) => toggleWishlist(product, e)}
                                                 title={isInWishlist(product.name) ? 'Remove from Wishlist' : 'Add to Wishlist'}

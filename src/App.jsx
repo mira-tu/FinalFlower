@@ -19,14 +19,11 @@ import OrderTracking from './pages/OrderTracking'
 import Profile from './pages/Profile'
 import MyOrders from './pages/MyOrders'
 import Notifications from './pages/Notifications'
-import AdminDashboard from './pages/AdminDashboard'
-import AdminSyncWrapper from './components/AdminSyncWrapper'
 
 function AppContent() {
   const location = useLocation();
   const isAuthRoute = ['/login', '/signup'].includes(location.pathname);
-  const isAdminRoute = location.pathname.startsWith('/admin');
-  const showNavbar = !isAuthRoute && !isAdminRoute;
+  const showNavbar = !isAuthRoute;
 
   const [cart, setCart] = useState(() => {
     const savedCart = localStorage.getItem('cart');
@@ -53,51 +50,45 @@ function AppContent() {
 
   const cartCount = cart.reduce((acc, item) => acc + (item.qty || 0), 0);
 
-return (
-  <>
-    {showNavbar && (
-      <Navbar cartCount={cartCount} />
-    )}
+  return (
+    <>
+      {showNavbar && (
+        <Navbar cartCount={cartCount} />
+      )}
 
-    <Routes>
-      {/* Public Routes */}
-      <Route path="/" element={<Home addToCart={addToCart} />} />
-      <Route path="/about" element={<About />} />
-      <Route path="/contact" element={<Contact />} />
-      <Route path="/wishlist" element={<Wishlist cart={cart} setCart={setCart} />} />
-      <Route path="/cart" element={<Cart cart={cart} setCart={setCart} />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
-      <Route path="/book-event" element={<BookEvent />} />
-      <Route path="/customized" element={<Customized addToCart={addToCart} />} />
-      <Route path="/special-order" element={<SpecialOrder />} />
-      <Route path="/product/:productId" element={<ProductDetail addToCart={addToCart} />} />
-      <Route path="/checkout" element={<Checkout setCart={setCart} />} />
-      <Route path="/order-success/:orderId" element={<OrderSuccess />} />
-      <Route path="/order-tracking/:orderId" element={<OrderTracking />} />
-      <Route path="/profile" element={<Profile />} />
-      <Route path="/my-orders" element={<MyOrders />} />
-      <Route path="/notifications" element={<Notifications />} />
-      <Route path="/events" element={<div className="container py-5"><h2>Events Page</h2></div>} />
-      {/* Admin Routes */}
-      <Route path="/admin/dashboard" element={<AdminDashboard />} />
-    </Routes>
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<Home addToCart={addToCart} />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/wishlist" element={<Wishlist cart={cart} setCart={setCart} />} />
+        <Route path="/cart" element={<Cart cart={cart} setCart={setCart} />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/book-event" element={<BookEvent />} />
+        <Route path="/customized" element={<Customized addToCart={addToCart} />} />
+        <Route path="/special-order" element={<SpecialOrder />} />
+        <Route path="/product/:productId" element={<ProductDetail addToCart={addToCart} />} />
+        <Route path="/checkout" element={<Checkout setCart={setCart} />} />
+        <Route path="/order-success/:orderId" element={<OrderSuccess />} />
+        <Route path="/order-tracking/:orderId" element={<OrderTracking />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/my-orders" element={<MyOrders />} />
+        <Route path="/notifications" element={<Notifications />} />
+        <Route path="/events" element={<div className="container py-5"><h2>Events Page</h2></div>} />
 
-    {showNavbar && <Footer />}
-  </>
-);
+      </Routes>
+
+      {showNavbar && <Footer />}
+    </>
+  );
 }
 
 function App() {
-  // Set your API endpoint here or use environment variable
-  const API_ENDPOINT = import.meta.env.VITE_API_URL || 'https://your-api.com/api';
-  
   return (
-    <AdminSyncWrapper apiEndpoint={API_ENDPOINT}>
-      <Router>
-        <AppContent />
-      </Router>
-    </AdminSyncWrapper>
+    <Router>
+      <AppContent />
+    </Router>
   )
 }
 

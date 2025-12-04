@@ -1,44 +1,49 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { authAPI } from '../config/api';
 import '../styles/Auth.css';
 
 const Login = () => {
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
-        
-        // Check admin login
-        if (email === 'admin@gmail.com' && password === 'admin123') {
-            const adminUser = {
-                email: 'admin@gmail.com',
-                role: 'admin',
-                name: 'Admin'
-            };
-            localStorage.setItem('currentUser', JSON.stringify(adminUser));
-            navigate('/admin/dashboard');
-            return;
+        setError('');
+        setLoading(true);
+
+        try {
+            // Try admin login first
+            let response;
+            try {
+                response = await authAPI.adminLogin({ email, password });
+
+                // Admin/Employee login successful
+                const { user, token } = response.data;
+                localStorage.setItem('token', token);
+                localStorage.setItem('currentUser', JSON.stringify(user));
+                navigate('/admin/dashboard');
+                return;
+            } catch (adminError) {
+                // If admin login fails, try customer login
+                response = await authAPI.login({ email, password });
+
+                // Customer login successful
+                const { user, token } = response.data;
+                localStorage.setItem('token', token);
+                localStorage.setItem('currentUser', JSON.stringify(user));
+                navigate('/');
+                return;
+            }
+        } catch (err) {
+            console.error('Login error:', err);
+            setError(err.response?.data?.message || 'Invalid email or password');
+        } finally {
+            setLoading(false);
         }
-        
-        // Check employee login
-        const employees = JSON.parse(localStorage.getItem('employees') || '[]');
-        const employee = employees.find(emp => emp.email === email && emp.password === password);
-        
-        if (employee) {
-            const employeeUser = {
-                email: employee.email,
-                role: employee.role,
-                name: employee.name
-            };
-            localStorage.setItem('currentUser', JSON.stringify(employeeUser));
-            navigate('/admin/dashboard');
-            return;
-        }
-        
-        // Regular user login (for now, just navigate to home)
-        navigate('/');
     };
 
     return (
@@ -47,8 +52,8 @@ const Login = () => {
                 <div className="auth-image">
                     <div className="auth-overlay"></div>
                     <div className="auth-text">
-                    <h3>Welcome to</h3>
-                    <h2>Jocery's Flower Shop!</h2>
+                        <h3>Welcome to</h3>
+                        <h2>Jocery's Flower Shop!</h2>
                         <p>We're so happy to see you again.</p>
                     </div>
                 </div>
@@ -57,6 +62,12 @@ const Login = () => {
                     <p className="auth-subtitle">Enter your details to access your account.</p>
 
                     <form onSubmit={handleLogin}>
+                        {error && (
+                            <div className="alert alert-danger" role="alert">
+                                {error}
+                            </div>
+                        )}
+
                         <div className="form-floating mb-3">
                             <input
                                 type="email"
@@ -66,6 +77,7 @@ const Login = () => {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
+                                disabled={loading}
                             />
                             <label htmlFor="floatingInput">Email address</label>
                         </div>
@@ -78,6 +90,7 @@ const Login = () => {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
+                                disabled={loading}
                             />
                             <label htmlFor="floatingPassword">Password</label>
                         </div>
@@ -92,7 +105,9 @@ const Login = () => {
                             <a href="#" className="auth-link small text-nowrap">Forgot Password?</a>
                         </div>
 
-                        <button type="submit" className="btn btn-auth">Sign In</button>
+                        <button type="submit" className="btn btn-auth" disabled={loading}>
+                            {loading ? 'Signing In...' : 'Sign In'}
+                        </button>
                     </form>
 
                     <div className="auth-footer">
