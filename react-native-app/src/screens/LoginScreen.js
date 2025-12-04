@@ -28,7 +28,7 @@ const LoginScreen = () => {
     setLoading(true);
 
     try {
-      console.log('Attempting login to:', 'http://192.168.111.74:5000/api/auth/admin/login');
+      console.log('Attempting login to:', 'http://192.168.111.94:5000/api/auth/admin/login');
       console.log('Email:', email);
 
       const response = await authAPI.adminLogin({ email, password });

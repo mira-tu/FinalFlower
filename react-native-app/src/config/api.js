@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // API Base URL - Update this with your computer's IP address for mobile testing
 // For local testing: Use your computer's IP (e.g., 192.168.1.100)
 // For production: Use your deployed backend URL
-const API_URL = 'http://192.168.111.74:5000/api'; // Your computer's IP
+const API_URL = 'http://192.168.111.94:5000/api'; // Your computer's IP
 
 // Create axios instance
 const api = axios.create({
@@ -95,7 +95,9 @@ export const adminAPI = {
     sendMessage: (data) => api.post('/admin/messages', data),
 
     // Notifications
-    sendNotification: (data) => api.post('/admin/notifications', data)
+    getAllNotifications: () => api.get('/admin/notifications'),
+    sendNotification: (data) => api.post('/admin/notifications', data),
+    deleteNotification: (id) => api.delete(`/admin/notifications/${id}`)
 };
 
 export const uploadAPI = {

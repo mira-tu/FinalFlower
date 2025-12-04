@@ -130,7 +130,7 @@ const upload = require('../middleware/upload');
 // @access  Private/Admin
 router.post('/', upload.single('image'), async (req, res) => {
     try {
-        const { name, description, price, category_id, quantity } = req.body;
+        const { name, description, price, category_id, stock_quantity } = req.body;
         const image_url = req.file ? `/uploads/${req.file.filename}` : null;
 
         if (!name || !price) {
@@ -142,7 +142,7 @@ router.post('/', upload.single('image'), async (req, res) => {
 
         const [result] = await pool.query(
             'INSERT INTO products (name, description, price, category_id, stock_quantity, is_active, image_url) VALUES (?, ?, ?, ?, ?, TRUE, ?)',
-            [name, description || '', price, category_id || 1, quantity || 0, image_url]
+            [name, description || '', price, category_id || 1, stock_quantity || 0, image_url]
         );
 
         res.status(201).json({
@@ -154,7 +154,7 @@ router.post('/', upload.single('image'), async (req, res) => {
                 description,
                 price,
                 category_id,
-                quantity,
+                stock_quantity,
                 image_url
             }
         });
@@ -172,7 +172,7 @@ router.post('/', upload.single('image'), async (req, res) => {
 // @access  Private/Admin
 router.put('/:id', upload.single('image'), async (req, res) => {
     try {
-        const { name, description, price, category_id, quantity } = req.body;
+        const { name, description, price, category_id, stock_quantity } = req.body;
         let image_url = req.body.image_url; // Keep existing image if not updated
 
         if (req.file) {
@@ -181,7 +181,7 @@ router.put('/:id', upload.single('image'), async (req, res) => {
 
         const [result] = await pool.query(
             'UPDATE products SET name = ?, description = ?, price = ?, category_id = ?, stock_quantity = ?, image_url = ? WHERE id = ?',
-            [name, description, price, category_id, quantity, image_url, req.params.id]
+            [name, description, price, category_id, stock_quantity, image_url, req.params.id]
         );
 
         if (result.affectedRows === 0) {

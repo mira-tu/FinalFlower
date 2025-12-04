@@ -35,7 +35,8 @@ app.use(helmet());
 app.use(cors({
     origin: [
         process.env.CLIENT_URL || 'http://localhost:5173',
-        process.env.ADMIN_URL || 'http://localhost:5173'
+        process.env.ADMIN_URL || 'http://localhost:5173',
+        /^http:\/\/192\.168\.\d+\.\d+:/ // Allow any local network IP for mobile testing
     ],
     credentials: true
 }));

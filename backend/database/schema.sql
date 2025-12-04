@@ -214,6 +214,7 @@ CREATE TABLE stock (
     name VARCHAR(255) NOT NULL,
     category VARCHAR(100),
     quantity INT NOT NULL DEFAULT 0,
+    price DECIMAL(10,2) DEFAULT 0,
     unit VARCHAR(50),
     reorder_level INT DEFAULT 10,
     is_available BOOLEAN DEFAULT TRUE,
@@ -338,6 +339,17 @@ INSERT INTO contact_info (id, address, phone, email, business_hours, map_url) VA
  'Monday - Saturday: 8:00 AM - 6:00 PM\nSunday: 9:00 AM - 5:00 PM',
  'https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d1608.6438299927784!2d122.07320562571662!3d6.908031381591681!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x325041c4ef608537%3A0xbd63d709d92c1d51!2sCagayano%27s%20Panciteria!5e0!3m2!1sen!2sus!4v1763301121573!5m2!1sen!2sus'
 );
+
+-- Insert sample stock data
+INSERT INTO stock (name, category, quantity, price, unit, reorder_level, is_available) VALUES
+('Red Satin Ribbon', 'Ribbons', 50, 25.00, 'meters', 10, TRUE),
+('Gold Foil Wrapper', 'Wrappers', 100, 15.00, 'pieces', 20, TRUE),
+('Fresh Red Roses', 'Flowers', 200, 50.00, 'stems', 50, TRUE),
+('Blue Organza Ribbon', 'Ribbons', 30, 30.00, 'meters', 10, TRUE),
+('Clear Cellophane', 'Wrappers', 75, 20.00, 'sheets', 15, TRUE),
+('White Lilies', 'Flowers', 150, 45.00, 'stems', 40, TRUE),
+('Pink Ribbon', 'Ribbons', 40, 28.00, 'meters', 10, TRUE),
+('Brown Kraft Paper', 'Wrappers', 60, 12.00, 'sheets', 15, TRUE);
 
 -- =====================================================
 -- VIEWS FOR ANALYTICS

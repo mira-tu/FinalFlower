@@ -16,6 +16,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   SafeAreaView,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
@@ -344,7 +346,7 @@ const CatalogueTab = () => {
       category_id: product.category_id?.toString() || '1',
       stock_quantity: product.stock_quantity?.toString() || '0',
       description: product.description || '',
-      image: product.image_url ? { uri: product.image_url.startsWith('http') ? product.image_url : `http://192.168.111.74:5000${product.image_url}` } : null,
+      image: product.image_url ? { uri: product.image_url.startsWith('http') ? product.image_url : `http://192.168.111.94:5000${product.image_url}` } : null,
     });
     setModalVisible(true);
   };
@@ -390,7 +392,7 @@ const CatalogueTab = () => {
       <View style={styles.imageContainer}>
         {item.image_url ? (
           <Image
-            source={{ uri: item.image_url.startsWith('http') ? item.image_url : `http://192.168.111.74:5000${item.image_url}` }}
+            source={{ uri: item.image_url.startsWith('http') ? item.image_url : `http://192.168.111.94:5000${item.image_url}` }}
             style={styles.productImage}
           />
         ) : (
@@ -722,11 +724,25 @@ const OrdersTab = () => {
 };
 
 // ==================== STOCK TAB ====================
+// ==================== STOCK TAB ====================
 const StockTab = () => {
   const [activeStockTab, setActiveStockTab] = useState('Ribbons');
   const [stockItems, setStockItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Modal State
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingStock, setEditingStock] = useState(null);
+  const [stockFormData, setStockFormData] = useState({
+    name: '',
+    category: 'Ribbons',
+    price: '',
+    quantity: '',
+    unit: '',
+    reorder_level: '10',
+    is_available: true
+  });
 
   useEffect(() => {
     loadStock();
@@ -751,6 +767,90 @@ const StockTab = () => {
     setRefreshing(false);
   };
 
+  const resetForm = () => {
+    setStockFormData({
+      name: '',
+      category: activeStockTab,
+      price: '',
+      quantity: '',
+      unit: '',
+      reorder_level: '10',
+      is_available: true
+    });
+    setEditingStock(null);
+  };
+
+  const handleEditStock = (item) => {
+    setEditingStock(item);
+    setStockFormData({
+      name: item.name,
+      category: item.category,
+      price: item.price ? item.price.toString() : '',
+      quantity: item.quantity ? item.quantity.toString() : '',
+      unit: item.unit || '',
+      reorder_level: item.reorder_level ? item.reorder_level.toString() : '10',
+      is_available: Boolean(item.is_available)
+    });
+    setModalVisible(true);
+  };
+
+  const handleDeleteStock = (id) => {
+    Alert.alert(
+      'Delete Item',
+      'Are you sure you want to delete this item?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await adminAPI.deleteStock(id);
+              Alert.alert('Success', 'Item deleted');
+              loadStock();
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete item');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleSaveStock = async () => {
+    if (!stockFormData.name || !stockFormData.quantity) {
+      Alert.alert('Error', 'Please fill in Name and Quantity');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = {
+        ...stockFormData,
+        price: parseFloat(stockFormData.price) || 0,
+        quantity: parseInt(stockFormData.quantity) || 0,
+        reorder_level: parseInt(stockFormData.reorder_level) || 10,
+      };
+
+      if (editingStock) {
+        await adminAPI.updateStock(editingStock.id, data);
+        Alert.alert('Success', 'Item updated successfully');
+      } else {
+        await adminAPI.createStock(data);
+        Alert.alert('Success', 'Item added successfully');
+      }
+
+      setModalVisible(false);
+      resetForm();
+      await loadStock();
+    } catch (error) {
+      console.error('Error saving stock:', error);
+      Alert.alert('Error', 'Failed to save item');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredStock = stockItems.filter(item =>
     item.category === activeStockTab
   );
@@ -759,7 +859,8 @@ const StockTab = () => {
     <View style={styles.stockCard}>
       <View style={styles.stockInfo}>
         <Text style={styles.stockName}>{item.name}</Text>
-        <Text style={styles.stockPrice}>₱{item.price || '0'}</Text>
+        <Text style={styles.stockPrice}>₱{item.price || '0'} / {item.unit || 'unit'}</Text>
+        <Text style={styles.stockQuantity}>Qty: {item.quantity}</Text>
         <View style={styles.stockAvailability}>
           <View style={[styles.availabilityDot, { backgroundColor: item.is_available ? '#4CAF50' : '#f44336' }]} />
           <Text style={styles.stockAvailabilityText}>
@@ -768,17 +869,23 @@ const StockTab = () => {
         </View>
       </View>
       <View style={styles.stockActions}>
-        <TouchableOpacity style={styles.editButtonSmall}>
+        <TouchableOpacity
+          style={styles.editButtonSmall}
+          onPress={() => handleEditStock(item)}
+        >
           <Ionicons name="create-outline" size={20} color="#2196F3" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.deleteButtonSmall}>
+        <TouchableOpacity
+          style={styles.deleteButtonSmall}
+          onPress={() => handleDeleteStock(item.id)}
+        >
           <Ionicons name="trash-outline" size={20} color="#f44336" />
         </TouchableOpacity>
       </View>
     </View>
   );
 
-  if (loading && !refreshing) {
+  if (loading && !refreshing && !modalVisible) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#ec4899" />
@@ -788,7 +895,13 @@ const StockTab = () => {
 
   return (
     <View style={styles.tabContent}>
-      <TouchableOpacity style={styles.addButton}>
+      <TouchableOpacity
+        style={styles.addButton}
+        onPress={() => {
+          resetForm();
+          setModalVisible(true);
+        }}
+      >
         <Ionicons name="add" size={20} color="#fff" />
         <Text style={styles.addButtonText}>Add {activeStockTab.slice(0, -1)}</Text>
       </TouchableOpacity>
@@ -824,35 +937,227 @@ const StockTab = () => {
           <Text style={styles.emptyText}>No {activeStockTab.toLowerCase()} found</Text>
         }
       />
+
+      {/* Add/Edit Stock Modal */}
+      <Modal visible={modalVisible} animationType="slide" transparent>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {editingStock ? 'Edit Stock Item' : 'Add Stock Item'}
+              </Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.inputLabel}>Item Name *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter item name"
+                value={stockFormData.name}
+                onChangeText={(text) => setStockFormData({ ...stockFormData, name: text })}
+              />
+
+              <Text style={styles.inputLabel}>Category</Text>
+              <View style={styles.categoryGrid}>
+                {['Wrappers', 'Ribbons', 'Flowers'].map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[
+                      styles.modalCategoryChip,
+                      stockFormData.category === cat && styles.modalCategoryChipActive
+                    ]}
+                    onPress={() => setStockFormData({ ...stockFormData, category: cat })}
+                  >
+                    <Text style={[
+                      styles.modalCategoryChipText,
+                      stockFormData.category === cat && styles.modalCategoryChipTextActive
+                    ]}>
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.rowInputs}>
+                <View style={styles.halfInput}>
+                  <Text style={styles.inputLabel}>Price</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="0.00"
+                    keyboardType="numeric"
+                    value={stockFormData.price}
+                    onChangeText={(text) => setStockFormData({ ...stockFormData, price: text })}
+                  />
+                </View>
+                <View style={styles.halfInput}>
+                  <Text style={styles.inputLabel}>Quantity *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="0"
+                    keyboardType="numeric"
+                    value={stockFormData.quantity}
+                    onChangeText={(text) => setStockFormData({ ...stockFormData, quantity: text })}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.rowInputs}>
+                <View style={styles.halfInput}>
+                  <Text style={styles.inputLabel}>Unit</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. meters"
+                    value={stockFormData.unit}
+                    onChangeText={(text) => setStockFormData({ ...stockFormData, unit: text })}
+                  />
+                </View>
+                <View style={styles.halfInput}>
+                  <Text style={styles.inputLabel}>Reorder Level</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="10"
+                    keyboardType="numeric"
+                    value={stockFormData.reorder_level}
+                    onChangeText={(text) => setStockFormData({ ...stockFormData, reorder_level: text })}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.switchContainer}>
+                <Text style={styles.inputLabel}>Available</Text>
+                <TouchableOpacity
+                  style={[styles.switch, stockFormData.is_available && styles.switchActive]}
+                  onPress={() => setStockFormData({ ...stockFormData, is_available: !stockFormData.is_available })}
+                >
+                  <View style={[styles.switchKnob, stockFormData.is_available && styles.switchKnobActive]} />
+                </TouchableOpacity>
+              </View>
+
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.buttonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={handleSaveStock}
+                disabled={loading}
+              >
+                <Text style={styles.buttonText}>
+                  {loading ? 'Saving...' : 'Save Item'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
 // ==================== NOTIFICATIONS TAB ====================
 const NotificationsTab = () => {
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      title: 'New Order Received',
-      message: 'Order #ORD-001 has been placed by Maria Santos. Total: ₱2,500',
-      date: '12/4/2025, 1:30:11 AM'
-    },
-    {
-      id: 2,
-      title: 'Payment Confirmed',
-      message: 'Payment for Order #ORD-001 has been confirmed. Amount: ₱2,500',
-      date: '12/4/2025, 12:30:11 AM'
-    },
-  ]);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [formData, setFormData] = useState({
+    title: '',
+    message: '',
+    user_id: ''
+  });
+
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  const loadNotifications = async () => {
+    setLoading(true);
+    try {
+      const response = await adminAPI.getAllNotifications();
+      setNotifications(response.data.notifications || []);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadNotifications();
+    setRefreshing(false);
+  };
+
+  const handleSendNotification = async () => {
+    if (!formData.title || !formData.message) {
+      Alert.alert('Error', 'Title and Message are required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await adminAPI.sendNotification({
+        ...formData,
+        user_id: formData.user_id || null // If empty, send as system/null
+      });
+      Alert.alert('Success', 'Notification sent');
+      setModalVisible(false);
+      setFormData({ title: '', message: '', user_id: '' });
+      loadNotifications();
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      Alert.alert('Error', 'Failed to send notification');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteNotification = (id) => {
+    Alert.alert('Delete', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await adminAPI.deleteNotification(id);
+            loadNotifications();
+          } catch (error) {
+            Alert.alert('Error', 'Failed to delete notification');
+          }
+        }
+      }
+    ]);
+  };
+
+  if (loading && !refreshing && !modalVisible) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#ec4899" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.tabContent}>
-      <TouchableOpacity style={styles.addButton}>
+      <TouchableOpacity
+        style={styles.addButton}
+        onPress={() => setModalVisible(true)}
+      >
         <Ionicons name="add" size={20} color="#fff" />
         <Text style={styles.addButtonText}>Send Notification</Text>
       </TouchableOpacity>
 
-      <Text style={styles.tabTitle}>Notifications</Text>
+      <Text style={styles.tabTitle}>System Notifications</Text>
 
       <FlatList
         data={notifications}
@@ -861,47 +1166,124 @@ const NotificationsTab = () => {
             <View style={styles.notificationContent}>
               <Text style={styles.notificationTitle}>{item.title}</Text>
               <Text style={styles.notificationMessage}>{item.message}</Text>
-              <Text style={styles.notificationDate}>{item.date}</Text>
+              <Text style={styles.notificationDate}>
+                {new Date(item.created_at).toLocaleDateString()} • {item.user_name || 'System Wide'}
+              </Text>
             </View>
-            <TouchableOpacity style={styles.deleteIconButton}>
+            <TouchableOpacity
+              style={styles.deleteIconButton}
+              onPress={() => handleDeleteNotification(item.id)}
+            >
               <Ionicons name="trash-outline" size={20} color="#f44336" />
             </TouchableOpacity>
           </View>
         )}
         keyExtractor={(item) => item.id.toString()}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#ec4899']} />
+        }
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No notifications</Text>
+          <Text style={styles.emptyText}>No notifications sent</Text>
         }
       />
+
+      {/* Send Notification Modal */}
+      <Modal visible={modalVisible} animationType="slide" transparent>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Send Notification</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView>
+              <Text style={styles.inputLabel}>Title *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Notification Title"
+                value={formData.title}
+                onChangeText={(text) => setFormData({ ...formData, title: text })}
+              />
+
+              <Text style={styles.inputLabel}>Message *</Text>
+              <TextInput
+                style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+                placeholder="Notification Message"
+                multiline
+                numberOfLines={4}
+                value={formData.message}
+                onChangeText={(text) => setFormData({ ...formData, message: text })}
+              />
+
+              <Text style={styles.inputLabel}>User ID (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Specific User ID (Leave empty for all)"
+                keyboardType="numeric"
+                value={formData.user_id}
+                onChangeText={(text) => setFormData({ ...formData, user_id: text })}
+              />
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.buttonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={handleSendNotification}
+                disabled={loading}
+              >
+                <Text style={styles.buttonText}>{loading ? 'Sending...' : 'Send'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
 // ==================== MESSAGING TAB ====================
 const MessagingTab = () => {
-  const [conversations, setConversations] = useState([
-    {
-      id: 1,
-      name: 'Maria Santos',
-      lastMessage: 'Thank you for the beautiful flowers! Th...',
-      date: 'Dec 4',
-      unread: 2
-    },
-    {
-      id: 2,
-      name: 'John Dela Cruz',
-      lastMessage: 'Yes',
-      date: 'Dec 4',
-      unread: 0
-    },
-    {
-      id: 3,
-      name: 'Sarah Garcia',
-      lastMessage: 'What colors do you have available?',
-      date: 'Dec 3',
-      unread: 0
-    },
-  ]);
+  const [conversations, setConversations] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadMessages();
+  }, []);
+
+  const loadMessages = async () => {
+    setLoading(true);
+    try {
+      const response = await adminAPI.getAllMessages();
+      setConversations(response.data.conversations || []);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadMessages();
+    setRefreshing(false);
+  };
+
+  if (loading && !refreshing) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#ec4899" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.tabContent}>
@@ -915,22 +1297,29 @@ const MessagingTab = () => {
               <Ionicons name="person" size={24} color="#ec4899" />
             </View>
             <View style={styles.conversationContent}>
-              <Text style={styles.conversationName}>{item.name}</Text>
-              <Text style={styles.conversationMessage}>{item.lastMessage}</Text>
+              <Text style={styles.conversationName}>{item.sender_name || 'Unknown User'}</Text>
+              <Text style={styles.conversationMessage} numberOfLines={1}>
+                {item.content}
+              </Text>
             </View>
             <View style={styles.conversationMeta}>
-              <Text style={styles.conversationDate}>{item.date}</Text>
-              {item.unread > 0 && (
+              <Text style={styles.conversationDate}>
+                {new Date(item.created_at).toLocaleDateString()}
+              </Text>
+              {item.unread_count > 0 && (
                 <View style={styles.unreadBadge}>
-                  <Text style={styles.unreadText}>{item.unread}</Text>
+                  <Text style={styles.unreadText}>{item.unread_count}</Text>
                 </View>
               )}
             </View>
           </TouchableOpacity>
         )}
         keyExtractor={(item) => item.id.toString()}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#ec4899']} />
+        }
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No messages</Text>
+          <Text style={styles.emptyText}>No messages yet</Text>
         }
       />
     </View>
@@ -958,6 +1347,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
+    paddingTop: Platform.OS === 'android' ? 50 : 20,
     backgroundColor: '#ec4899',
   },
   headerCenter: {
@@ -983,6 +1373,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
     paddingVertical: 8,
+    paddingBottom: 25,
+    height: 85,
   },
   navItem: {
     flex: 1,

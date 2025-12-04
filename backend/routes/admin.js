@@ -9,7 +9,7 @@ router.get('/orders', adminAuth, async (req, res) => {
         const { status, payment_status } = req.query;
         let query = 'SELECT o.*, u.name as customer_name, u.email as customer_email FROM orders o JOIN users u ON o.user_id = u.id WHERE 1=1';
         const params = [];
-        
+
         if (status) {
             query += ' AND o.status = ?';
             params.push(status);
@@ -18,9 +18,9 @@ router.get('/orders', adminAuth, async (req, res) => {
             query += ' AND o.payment_status = ?';
             params.push(payment_status);
         }
-        
+
         query += ' ORDER BY o.created_at DESC';
-        
+
         const [orders] = await pool.query(query, params);
         res.json({ success: true, orders });
     } catch (error) {
@@ -56,6 +56,228 @@ router.get('/sales/summary', adminOnly, async (req, res) => {
         const [summary] = await pool.query('SELECT * FROM order_statistics');
         res.json({ success: true, summary: summary[0] });
     } catch (error) {
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// =====================================================
+// STOCK MANAGEMENT
+// =====================================================
+
+// Get all stock items
+router.get('/stock', adminAuth, async (req, res) => {
+    try {
+        const { category } = req.query;
+        let query = 'SELECT * FROM stock WHERE 1=1';
+        const params = [];
+
+        if (category) {
+            query += ' AND category = ?';
+            params.push(category);
+        }
+
+        query += ' ORDER BY category, name';
+
+        const [stock] = await pool.query(query, params);
+        res.json({ success: true, stock });
+    } catch (error) {
+        console.error('Get stock error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// Create stock item
+router.post('/stock', adminAuth, async (req, res) => {
+    try {
+        const { name, category, quantity, price, unit, reorder_level, is_available } = req.body;
+
+        if (!name || !category) {
+            return res.status(400).json({
+                success: false,
+                message: 'Name and category are required'
+            });
+        }
+
+        const [result] = await pool.query(
+            'INSERT INTO stock (name, category, quantity, price, unit, reorder_level, is_available) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [name, category, quantity || 0, price || 0, unit || 'pieces', reorder_level || 10, is_available !== false]
+        );
+
+        res.status(201).json({
+            success: true,
+            message: 'Stock item created',
+            stock: { id: result.insertId, name, category, quantity, price, unit, reorder_level, is_available }
+        });
+    } catch (error) {
+        console.error('Create stock error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// Update stock item
+router.put('/stock/:id', adminAuth, async (req, res) => {
+    try {
+        const { name, category, quantity, price, unit, reorder_level, is_available } = req.body;
+
+        const [result] = await pool.query(
+            'UPDATE stock SET name = ?, category = ?, quantity = ?, price = ?, unit = ?, reorder_level = ?, is_available = ? WHERE id = ?',
+            [name, category, quantity, price, unit, reorder_level, is_available, req.params.id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Stock item not found'
+            });
+        }
+
+        res.json({ success: true, message: 'Stock item updated' });
+    } catch (error) {
+        console.error('Update stock error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// Delete stock item
+router.delete('/stock/:id', adminAuth, async (req, res) => {
+    try {
+        const [result] = await pool.query('DELETE FROM stock WHERE id = ?', [req.params.id]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Stock item not found'
+            });
+        }
+
+        res.json({ success: true, message: 'Stock item deleted' });
+    } catch (error) {
+        console.error('Delete stock error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// =====================================================
+// MESSAGES
+// =====================================================
+
+// Get all messages (grouped by user)
+router.get('/messages', adminAuth, async (req, res) => {
+    try {
+        // Get the latest message for each user to form the conversation list
+        const query = `
+            SELECT 
+                m.*,
+                u.name as sender_name,
+                u.email as sender_email,
+                (SELECT COUNT(*) FROM messages WHERE sender_id = m.sender_id AND is_read = FALSE AND sender_type = 'customer') as unread_count
+            FROM messages m
+            JOIN users u ON m.sender_id = u.id
+            WHERE m.id IN (
+                SELECT MAX(id)
+                FROM messages
+                GROUP BY sender_id
+            )
+            ORDER BY m.created_at DESC
+        `;
+
+        const [conversations] = await pool.query(query);
+        res.json({ success: true, conversations });
+    } catch (error) {
+        console.error('Get messages error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// Send message (Admin reply)
+router.post('/messages', adminAuth, async (req, res) => {
+    try {
+        const { user_id, content, order_id } = req.body;
+
+        if (!user_id || !content) {
+            return res.status(400).json({
+                success: false,
+                message: 'User ID and content are required'
+            });
+        }
+
+        const [result] = await pool.query(
+            'INSERT INTO messages (sender_id, sender_type, content, order_id, is_read) VALUES (?, ?, ?, ?, ?)',
+            [user_id, 'admin', content, order_id || null, false]
+        );
+
+        res.status(201).json({
+            success: true,
+            message: 'Message sent',
+            message_id: result.insertId
+        });
+    } catch (error) {
+        console.error('Send message error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// =====================================================
+// NOTIFICATIONS
+// =====================================================
+
+// Get all notifications
+router.get('/notifications', adminAuth, async (req, res) => {
+    try {
+        const [notifications] = await pool.query(`
+            SELECT n.*, u.name as user_name 
+            FROM notifications n 
+            LEFT JOIN users u ON n.user_id = u.id 
+            ORDER BY n.created_at DESC 
+            LIMIT 50
+        `);
+        res.json({ success: true, notifications });
+    } catch (error) {
+        console.error('Get notifications error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// Send notification
+router.post('/notifications', adminAuth, async (req, res) => {
+    try {
+        const { user_id, title, message, type } = req.body;
+
+        if (!title || !message) {
+            return res.status(400).json({
+                success: false,
+                message: 'Title and message are required'
+            });
+        }
+
+        // If user_id is provided, send to specific user. If not, maybe broadcast? 
+        // For now, let's require user_id or handle broadcast logic later.
+        // Let's assume user_id is optional and if null, it's a system-wide notification (logic to be added if needed)
+        // But the schema links to user_id. Let's stick to specific user for now or allow NULL for system.
+
+        const [result] = await pool.query(
+            'INSERT INTO notifications (user_id, title, message, type, is_read) VALUES (?, ?, ?, ?, ?)',
+            [user_id || null, title, message, type || 'system', false]
+        );
+
+        res.status(201).json({
+            success: true,
+            message: 'Notification sent',
+            notification: { id: result.insertId, user_id, title, message, type, created_at: new Date() }
+        });
+    } catch (error) {
+        console.error('Send notification error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// Delete notification
+router.delete('/notifications/:id', adminAuth, async (req, res) => {
+    try {
+        await pool.query('DELETE FROM notifications WHERE id = ?', [req.params.id]);
+        res.json({ success: true, message: 'Notification deleted' });
+    } catch (error) {
+        console.error('Delete notification error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });
