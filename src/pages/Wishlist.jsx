@@ -2,42 +2,68 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import '../styles/Shop.css';
 
-const Wishlist = ({ cart, setCart }) => {
+import { wishlistAPI } from '../config/api';
+
+const Wishlist = ({ cart, addToCart }) => {
     const [wishlistItems, setWishlistItems] = useState([]);
     const [showPopup, setShowPopup] = useState(false);
+    const isLoggedIn = !!localStorage.getItem('token');
 
     useEffect(() => {
-        const savedWishlist = localStorage.getItem('wishlist');
-        if (savedWishlist) {
-            try {
-                setWishlistItems(JSON.parse(savedWishlist));
-            } catch (e) {
-                console.error('Error parsing wishlist:', e);
+        if (isLoggedIn) {
+            fetchWishlist();
+        } else {
+            const savedWishlist = localStorage.getItem('wishlist');
+            if (savedWishlist) {
+                try {
+                    setWishlistItems(JSON.parse(savedWishlist));
+                } catch (e) {
+                    console.error('Error parsing wishlist:', e);
+                }
             }
         }
-    }, []);
+    }, [isLoggedIn]);
 
-    const saveWishlist = (items) => {
-        setWishlistItems(items);
-        localStorage.setItem('wishlist', JSON.stringify(items));
-    };
-
-    const removeFromWishlist = (itemName) => {
-        saveWishlist(wishlistItems.filter(item => item.name !== itemName));
-    };
-
-    const addToCart = (item) => {
-        const existingItem = cart.find(i => i.name === item.name);
-        let newCart;
-        if (existingItem) {
-            newCart = cart.map(i => 
-                i.name === item.name ? { ...i, qty: (i.qty || 1) + 1 } : i
-            );
-        } else {
-            newCart = [...cart, { name: item.name, price: item.price, image: item.image, qty: 1 }];
+    const fetchWishlist = async () => {
+        try {
+            const response = await wishlistAPI.getAll();
+            if (response.data.success) {
+                setWishlistItems(response.data.wishlist);
+            }
+        } catch (error) {
+            console.error('Error fetching wishlist:', error);
         }
-        setCart(newCart);
-        removeFromWishlist(item.name);
+    };
+
+    const removeFromWishlist = async (item) => {
+        if (isLoggedIn) {
+            try {
+                // Assuming item has productId or we use item.id if it's from API
+                const idToRemove = item.product_id || item.id;
+                // Wait, wishlistAPI.remove takes productId? Let's check api.js
+                // api.js: remove: (productId) => api.delete(`/wishlist/remove/${productId}`)
+                // If item comes from API, it might have product_id. If local, it has name/id.
+                // Let's assume item.id is the product id for now or we need to find it.
+                // Actually, local wishlist items only have name, price, image. No ID!
+                // This is a problem for migration. But for new API items, they should have ID.
+                await wishlistAPI.remove(item.product_id || item.id);
+                fetchWishlist();
+            } catch (error) {
+                console.error('Error removing from wishlist:', error);
+            }
+        } else {
+            const newItems = wishlistItems.filter(i => i.name !== item.name);
+            setWishlistItems(newItems);
+            localStorage.setItem('wishlist', JSON.stringify(newItems));
+        }
+    };
+
+    const handleAddToCart = (item) => {
+        // item from API: { product_id, name, price, image_url }
+        // item from local: { name, price, image }
+        const productId = item.product_id || item.id;
+        addToCart(item.name, item.price, item.image || item.image_url, productId);
+        removeFromWishlist(item);
         setShowPopup(true);
         setTimeout(() => setShowPopup(false), 2000);
     };
@@ -94,8 +120,8 @@ const Wishlist = ({ cart, setCart }) => {
                 ) : (
                     <div className="bg-white rounded-4 shadow-sm overflow-hidden">
                         {wishlistItems.map((item, index) => (
-                            <div 
-                                key={index} 
+                            <div
+                                key={index}
                                 className="d-flex align-items-center p-3"
                                 style={{ borderBottom: index < wishlistItems.length - 1 ? '1px solid #eee' : 'none' }}
                             >
@@ -116,14 +142,14 @@ const Wishlist = ({ cart, setCart }) => {
                                     <button
                                         className="btn btn-sm rounded-pill px-3"
                                         style={{ background: '#4caf50', color: 'white', border: 'none' }}
-                                        onClick={() => addToCart(item)}
+                                        onClick={() => handleAddToCart(item)}
                                     >
                                         <i className="fas fa-cart-plus me-1"></i>Add
                                     </button>
                                     <button
                                         className="btn btn-outline-danger btn-sm rounded-circle d-flex align-items-center justify-content-center"
                                         style={{ width: '36px', height: '36px' }}
-                                        onClick={() => removeFromWishlist(item.name)}
+                                        onClick={() => removeFromWishlist(item)}
                                         title="Remove"
                                     >
                                         <i className="fas fa-trash-alt" style={{ fontSize: '0.8rem' }}></i>

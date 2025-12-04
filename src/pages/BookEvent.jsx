@@ -32,7 +32,7 @@ const BookEvent = () => {
         if (files && files[0]) {
             const file = files[0];
             setFormData((prev) => ({ ...prev, [name]: file }));
-            
+
             // Create preview
             const reader = new FileReader();
             reader.onloadend = () => {
@@ -70,58 +70,61 @@ const BookEvent = () => {
 
     const handleSubmit = async (event) => {
         event.preventDefault();
-        
-        // Convert file to base64 for storage
-        let photoBase64 = null;
-        if (formData.inspirationFile) {
-            const reader = new FileReader();
-            photoBase64 = await new Promise((resolve) => {
-                reader.onloadend = () => resolve(reader.result);
-                reader.readAsDataURL(formData.inspirationFile);
+
+        try {
+            // Import APIs dynamically
+            const { requestAPI, uploadAPI } = require('../config/api');
+
+            let photoUrl = null;
+
+            // Upload photo if selected
+            if (formData.inspirationFile) {
+                try {
+                    const uploadResponse = await uploadAPI.image(formData.inspirationFile);
+                    if (uploadResponse.data.success) {
+                        photoUrl = uploadResponse.data.url;
+                    }
+                } catch (uploadError) {
+                    console.error('Error uploading image:', uploadError);
+                    setStatus({
+                        type: 'error',
+                        message: 'Failed to upload image. Please try again or try a smaller image.'
+                    });
+                    return;
+                }
+            }
+
+            const requestData = {
+                type: 'booking',
+                data: {
+                    fullName: formData.fullName,
+                    eventType: formData.eventType,
+                    otherEventType: formData.otherEventType,
+                    eventDate: formData.eventDate,
+                    venue: formData.venue,
+                    details: formData.details
+                },
+                photo_url: photoUrl,
+                notes: formData.details
+            };
+
+            const response = await requestAPI.create(requestData);
+
+            if (response.data.success) {
+                setShowModal(true);
+                setFormData(initialFormState);
+                setImagePreview(null);
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                }
+                setStatus(null);
+            }
+        } catch (error) {
+            console.error('Error submitting booking:', error);
+            setStatus({
+                type: 'error',
+                message: 'Failed to submit booking. Please try again.'
             });
-        }
-
-        // Save request to localStorage
-        const requests = JSON.parse(localStorage.getItem('requests') || '[]');
-        const requestId = `booking-${Date.now()}`;
-        const newRequest = {
-            id: requestId,
-            type: 'booking',
-            status: 'pending',
-            paymentStatus: 'to_pay', // Requests default to 'to_pay' until admin confirms
-            fullName: formData.fullName,
-            eventType: formData.eventType,
-            otherEventType: formData.otherEventType,
-            eventDate: formData.eventDate,
-            venue: formData.venue,
-            details: formData.details,
-            photo: photoBase64,
-            requestDate: new Date().toISOString(),
-            price: 0, // Price to be determined by admin
-        };
-        requests.push(newRequest);
-        localStorage.setItem('requests', JSON.stringify(requests));
-
-        // Create notification
-        const notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
-        const newNotification = {
-            id: `notif-${Date.now()}`,
-            type: 'request',
-            title: 'Event Booking Request Submitted!',
-            message: `Your ${formData.eventType || 'event'} booking request has been submitted and is pending approval.`,
-            icon: 'fa-calendar-check',
-            timestamp: new Date().toISOString(),
-            read: false,
-            link: '/my-orders'
-        };
-        localStorage.setItem('notifications', JSON.stringify([newNotification, ...notifications]));
-
-        setShowModal(true);
-        setFormData(initialFormState);
-        setImagePreview(null);
-
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
         }
     };
 
@@ -239,9 +242,9 @@ const BookEvent = () => {
                                                 <label className="form-label fw-semibold" htmlFor="inspirationFile">Inspiration Gallery</label>
                                                 {imagePreview ? (
                                                     <div className="position-relative">
-                                                        <img 
-                                                            src={imagePreview} 
-                                                            alt="Preview" 
+                                                        <img
+                                                            src={imagePreview}
+                                                            alt="Preview"
                                                             style={{
                                                                 width: '100%',
                                                                 maxHeight: '400px',

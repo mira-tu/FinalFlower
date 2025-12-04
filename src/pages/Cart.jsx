@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import '../styles/Shop.css';
 
-const Cart = ({ cart, setCart }) => {
+const Cart = ({ cart, updateCartItem, removeFromCart }) => {
     const navigate = useNavigate();
     const [cartItems, setCartItems] = useState([]);
 
@@ -10,7 +10,8 @@ const Cart = ({ cart, setCart }) => {
         if (cart) {
             setCartItems(cart.map((item, index) => ({
                 ...item,
-                id: index + 1,
+                // Ensure we have a stable ID for local items if needed, but prefer provided ID
+                id: item.id || item.productId || `local-${index}`,
                 selected: true,
                 qty: item.qty || 1
             })));
@@ -24,23 +25,15 @@ const Cart = ({ cart, setCart }) => {
     };
 
     const updateQty = (id, change) => {
-        const updatedItems = cartItems.map(item => {
-            if (item.id === id) {
-                const newQty = Math.max(1, item.qty + change);
-                return { ...item, qty: newQty };
-            }
-            return item;
-        });
-        setCartItems(updatedItems);
-        const itemsToSave = updatedItems.map(({ id, selected, ...rest }) => rest);
-        setCart(itemsToSave);
+        const item = cartItems.find(i => i.id === id);
+        if (item) {
+            const newQty = Math.max(1, item.qty + change);
+            updateCartItem(id, newQty);
+        }
     };
 
     const removeItem = (id) => {
-        const updatedItems = cartItems.filter(item => item.id !== id);
-        setCartItems(updatedItems);
-        const itemsToSave = updatedItems.map(({ id, selected, ...rest }) => rest);
-        setCart(itemsToSave);
+        removeFromCart(id);
     };
 
     const totalAmount = cartItems
@@ -55,13 +48,13 @@ const Cart = ({ cart, setCart }) => {
 
             {cartItems.length === 0 ? (
                 <div className="text-center py-5 bg-white rounded shadow-sm">
-                    <div style={{ 
-                        width: '100px', 
-                        height: '100px', 
-                        background: '#f5f5f5', 
-                        borderRadius: '50%', 
-                        display: 'flex', 
-                        alignItems: 'center', 
+                    <div style={{
+                        width: '100px',
+                        height: '100px',
+                        background: '#f5f5f5',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
                         justifyContent: 'center',
                         margin: '0 auto 20px'
                     }}>
@@ -69,8 +62,8 @@ const Cart = ({ cart, setCart }) => {
                     </div>
                     <h4 className="text-muted mb-3">Your cart is empty</h4>
                     <p className="text-muted mb-4">Looks like you haven't added anything yet</p>
-                    <Link 
-                        to="/" 
+                    <Link
+                        to="/"
                         className="btn rounded-pill px-4 py-2"
                         style={{ background: 'var(--shop-pink)', color: 'white' }}
                     >
@@ -105,7 +98,7 @@ const Cart = ({ cart, setCart }) => {
                                                     type="checkbox"
                                                     checked={item.selected}
                                                     onChange={() => toggleSelect(item.id)}
-                                                    style={{ 
+                                                    style={{
                                                         borderColor: item.selected ? '#4caf50' : '#dee2e6',
                                                         backgroundColor: item.selected ? '#4caf50' : 'white'
                                                     }}
@@ -174,7 +167,7 @@ const Cart = ({ cart, setCart }) => {
                                     <span className="fw-bold fs-5" style={{ color: '#4caf50' }}>₱{totalAmount.toLocaleString()}</span>
                                 </div>
 
-                                <button 
+                                <button
                                     className="btn btn-primary w-100 py-2 fw-bold rounded-pill shadow-sm"
                                     style={{ background: 'var(--shop-pink)', border: 'none' }}
                                     onClick={() => {

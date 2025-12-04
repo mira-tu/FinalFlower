@@ -20,19 +20,16 @@ const menuItems = [
     { id: 'settings', label: 'Account Settings', icon: 'fa-cog' },
 ];
 
-const mockUserAddresses = [
-    { id: 1, label: 'Home', name: 'Maria Santos', phone: '+63 912 345 6789', address: '123 Sampaguita St., Brgy. Maligaya, Quezon City, Metro Manila 1100', isDefault: true },
-    { id: 2, label: 'Office', name: 'Maria Santos', phone: '+63 912 345 6789', address: '456 Rizal Avenue, Makati Business District, Makati City, Metro Manila 1200', isDefault: false },
-];
 
-const Profile = () => {
+
+const Profile = ({ user, logout }) => {
     const navigate = useNavigate();
     const [activeMenu, setActiveMenu] = useState('orders');
     const [activeOrderTab, setActiveOrderTab] = useState('all');
     const [orders, setOrders] = useState([]);
     const [addresses, setAddresses] = useState(() => {
-        const saved = localStorage.getItem('userAddresses');
-        return saved ? JSON.parse(saved) : mockUserAddresses;
+        const saved = localStorage.getItem(`userAddresses_${user?.email}`);
+        return saved ? JSON.parse(saved) : [];
     });
     const [showAddressModal, setShowAddressModal] = useState(false);
     const [editingAddress, setEditingAddress] = useState(null);
@@ -51,30 +48,32 @@ const Profile = () => {
     const [orderToCancel, setOrderToCancel] = useState(null);
     const [showWaitingModal, setShowWaitingModal] = useState(false);
 
-    const user = {
-        name: 'Maria Santos',
-        email: 'maria.santos@email.com',
-        phone: '+63 912 345 6789',
-        memberSince: 'January 2024'
-    };
+    // Redirect if not logged in
+    useEffect(() => {
+        if (!user) {
+            navigate('/login');
+        }
+    }, [user, navigate]);
+
+    if (!user) return null;
 
     useEffect(() => {
-        // Initialize addresses in localStorage if not present
-        if (!localStorage.getItem('userAddresses')) {
-            localStorage.setItem('userAddresses', JSON.stringify(mockUserAddresses));
-        }
-        
+        // Initialize addresses in localStorage if not present - REMOVED per user request
+        // if (!localStorage.getItem('userAddresses')) {
+        //     localStorage.setItem('userAddresses', JSON.stringify(mockUserAddresses));
+        // }
+
         // Load all orders including regular orders, event bookings, special orders, and customized requests
         const savedOrders = JSON.parse(localStorage.getItem('orders') || '[]');
         const savedRequests = JSON.parse(localStorage.getItem('requests') || '[]');
-        
+
         // Combine regular orders with requests (bookings, special orders, customized)
         const allOrders = [...savedOrders, ...savedRequests];
-        
+
         // Enrich orders with status and paymentStatus if not present
         const enrichedOrders = allOrders.map((order) => {
             let enrichedOrder = { ...order };
-            
+
             // Add paymentStatus if not present
             if (!enrichedOrder.paymentStatus) {
                 // If payment method exists and is GCash, mark as waiting for confirmation; otherwise to_pay
@@ -84,7 +83,7 @@ const Profile = () => {
                     enrichedOrder.paymentStatus = 'to_pay';
                 }
             }
-            
+
             // Add status if not present or update COD orders to processing
             if (!enrichedOrder.status) {
                 // Determine status based on order type and date
@@ -96,7 +95,7 @@ const Profile = () => {
                     const orderDate = new Date(enrichedOrder.date || enrichedOrder.requestDate);
                     const now = new Date();
                     const hours = (now - orderDate) / (1000 * 60 * 60);
-                    
+
                     if (hours < 2) {
                         enrichedOrder.status = 'to_pay';
                     } else if (hours < 8) {
@@ -123,17 +122,17 @@ const Profile = () => {
                 // Move existing COD orders from pending to processing
                 enrichedOrder.status = 'processing';
             }
-            
+
             return enrichedOrder;
         });
-        
+
         // Sort by date (newest first)
         enrichedOrders.sort((a, b) => {
             const dateA = new Date(a.date || a.requestDate || 0);
             const dateB = new Date(b.date || b.requestDate || 0);
             return dateB - dateA;
         });
-        
+
         setOrders(enrichedOrders);
 
         // Load messages
@@ -163,8 +162,8 @@ const Profile = () => {
         return labels[type] || 'Order';
     };
 
-    const filteredOrders = activeOrderTab === 'all' 
-        ? orders 
+    const filteredOrders = activeOrderTab === 'all'
+        ? orders
         : orders.filter(o => o.status === activeOrderTab);
 
     const getStatusBadgeClass = (status) => {
@@ -218,14 +217,14 @@ const Profile = () => {
 
         // Create cancellation notification
         const notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
-        const orderTypeLabel = orderToCancel.type 
-            ? (orderToCancel.type === 'booking' ? 'Event Booking' 
-                : orderToCancel.type === 'special_order' ? 'Special Order' 
-                : orderToCancel.type === 'customized' ? 'Customized Bouquet' 
-                : 'Request')
+        const orderTypeLabel = orderToCancel.type
+            ? (orderToCancel.type === 'booking' ? 'Event Booking'
+                : orderToCancel.type === 'special_order' ? 'Special Order'
+                    : orderToCancel.type === 'customized' ? 'Customized Bouquet'
+                        : 'Request')
             : 'Order';
         const orderId = orderToCancel.id ? `#${orderToCancel.id}` : '';
-        
+
         const newNotification = {
             id: `notif-${Date.now()}`,
             type: 'cancellation',
@@ -255,11 +254,11 @@ const Profile = () => {
         const savedOrders = JSON.parse(localStorage.getItem('orders') || '[]');
         const savedRequests = JSON.parse(localStorage.getItem('requests') || '[]');
         const allOrders = [...savedOrders, ...savedRequests];
-        
+
         // Apply enrichment logic
         const enrichedOrders = allOrders.map((order) => {
             let enrichedOrder = { ...order };
-            
+
             if (!enrichedOrder.paymentStatus) {
                 if (enrichedOrder.payment && enrichedOrder.payment.id === 'gcash') {
                     enrichedOrder.paymentStatus = 'waiting_for_confirmation';
@@ -267,7 +266,7 @@ const Profile = () => {
                     enrichedOrder.paymentStatus = 'to_pay';
                 }
             }
-            
+
             if (!enrichedOrder.status) {
                 if (enrichedOrder.type === 'booking' || enrichedOrder.type === 'special_order' || enrichedOrder.type === 'customized') {
                     enrichedOrder.status = 'pending';
@@ -275,7 +274,7 @@ const Profile = () => {
                     const orderDate = new Date(enrichedOrder.date || enrichedOrder.requestDate);
                     const now = new Date();
                     const hours = (now - orderDate) / (1000 * 60 * 60);
-                    
+
                     if (hours < 2) {
                         enrichedOrder.status = 'to_pay';
                     } else if (hours < 8) {
@@ -301,16 +300,16 @@ const Profile = () => {
             } else if (enrichedOrder.status === 'pending' && enrichedOrder.payment && enrichedOrder.payment.id === 'cod') {
                 enrichedOrder.status = 'processing';
             }
-            
+
             return enrichedOrder;
         });
-        
+
         enrichedOrders.sort((a, b) => {
             const dateA = new Date(a.date || a.requestDate || 0);
             const dateB = new Date(b.date || b.requestDate || 0);
             return dateB - dateA;
         });
-        
+
         setOrders(enrichedOrders);
         setShowCancelModal(false);
         setOrderToCancel(null);
@@ -332,14 +331,14 @@ const Profile = () => {
 
     const sendMessage = () => {
         if (!newMessage.trim()) return;
-        
+
         const userMsg = {
             id: messages.length + 1,
             sender: 'user',
             text: newMessage.trim(),
             time: new Date().toISOString()
         };
-        
+
         const updatedMessages = [...messages, userMsg];
         setMessages(updatedMessages);
         localStorage.setItem('userMessages', JSON.stringify(updatedMessages));
@@ -369,10 +368,10 @@ const Profile = () => {
         <>
             <div className="order-tabs" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {orderTabs.map(tab => {
-                    const orderCount = tab.id !== 'all' 
-                        ? orders.filter(o => o.status === tab.id).length 
+                    const orderCount = tab.id !== 'all'
+                        ? orders.filter(o => o.status === tab.id).length
                         : orders.length;
-                    
+
                     return (
                         <button
                             key={tab.id}
@@ -430,22 +429,20 @@ const Profile = () => {
                                         {getStatusLabel(order.status)}
                                     </span>
                                     {order.paymentStatus && (
-                                        <span className={`badge ${
-                                            order.paymentStatus === 'paid' 
-                                                ? 'bg-success' 
-                                                : order.paymentStatus === 'waiting_for_confirmation' 
-                                                    ? 'bg-info' 
-                                                    : 'bg-warning'
-                                        }`}>
-                                            <i className={`fas ${
-                                                order.paymentStatus === 'paid' 
-                                                    ? 'fa-check-circle' 
-                                                    : order.paymentStatus === 'waiting_for_confirmation'
-                                                        ? 'fa-hourglass-half'
-                                                        : 'fa-clock'
-                                            } me-1`}></i>
-                                            {order.paymentStatus === 'paid' 
-                                                ? 'Paid' 
+                                        <span className={`badge ${order.paymentStatus === 'paid'
+                                            ? 'bg-success'
+                                            : order.paymentStatus === 'waiting_for_confirmation'
+                                                ? 'bg-info'
+                                                : 'bg-warning'
+                                            }`}>
+                                            <i className={`fas ${order.paymentStatus === 'paid'
+                                                ? 'fa-check-circle'
+                                                : order.paymentStatus === 'waiting_for_confirmation'
+                                                    ? 'fa-hourglass-half'
+                                                    : 'fa-clock'
+                                                } me-1`}></i>
+                                            {order.paymentStatus === 'paid'
+                                                ? 'Paid'
                                                 : order.paymentStatus === 'waiting_for_confirmation'
                                                     ? 'Waiting for Confirmation'
                                                     : 'To Pay'}
@@ -459,8 +456,8 @@ const Profile = () => {
                                     <>
                                         {order.items.slice(0, 2).map((item, idx) => (
                                             <div key={idx} className="order-item">
-                                                <img 
-                                                    src={item.image || item.photo} 
+                                                <img
+                                                    src={item.image || item.photo}
                                                     alt={item.name || 'Item'}
                                                     className="order-item-img"
                                                     onError={(e) => e.target.src = 'https://via.placeholder.com/70'}
@@ -487,8 +484,8 @@ const Profile = () => {
                                     // Display request details for bookings, special orders, and customized
                                     <div className="order-item">
                                         {order.photo && (
-                                            <img 
-                                                src={order.photo} 
+                                            <img
+                                                src={order.photo}
                                                 alt="Request preview"
                                                 className="order-item-img"
                                                 style={{ objectFit: 'cover' }}
@@ -532,7 +529,7 @@ const Profile = () => {
                                         </div>
                                     </div>
                                 )}
-                                
+
                                 {/* Payment Method Information */}
                                 {order.payment && (
                                     <div className="mt-3 pt-3 border-top">
@@ -547,7 +544,7 @@ const Profile = () => {
                                         </div>
                                     </div>
                                 )}
-                                
+
                                 {/* Delivery/Pickup Information */}
                                 {(order.deliveryMethod || order.address) && (
                                     <div className="mt-3 pt-3 border-top">
@@ -575,8 +572,8 @@ const Profile = () => {
                                                     <div className="flex-grow-1">
                                                         <div className="small fw-bold mb-1">Delivery Address</div>
                                                         <div className="small text-muted">
-                                                            {typeof order.address === 'string' 
-                                                                ? order.address 
+                                                            {typeof order.address === 'string'
+                                                                ? order.address
                                                                 : `${order.address.street}, ${order.address.city}, ${order.address.province} ${order.address.zip}`
                                                             }
                                                         </div>
@@ -593,7 +590,7 @@ const Profile = () => {
                                 </div>
                                 <div className="order-actions">
                                     {order.status === 'completed' && order.items && (
-                                        <button 
+                                        <button
                                             className="btn-order-action secondary"
                                             onClick={() => {
                                                 const cart = JSON.parse(localStorage.getItem('cart') || '[]');
@@ -613,7 +610,7 @@ const Profile = () => {
                                         </button>
                                     )}
                                     {order.status === 'pending' && order.type && (
-                                        <button 
+                                        <button
                                             className="btn-order-action primary"
                                             onClick={() => handleTrackStatus(order)}
                                         >
@@ -621,7 +618,7 @@ const Profile = () => {
                                         </button>
                                     )}
                                     {order.status !== 'cancelled' && order.status !== 'completed' && !(order.status === 'pending' && order.type) && (
-                                        <button 
+                                        <button
                                             className="btn-order-action primary"
                                             onClick={() => handleTrackOrder(order.id || `order-${index}`)}
                                         >
@@ -629,11 +626,11 @@ const Profile = () => {
                                         </button>
                                     )}
                                     {order.status !== 'cancelled' && order.status !== 'completed' && (
-                                        <button 
+                                        <button
                                             className="btn-order-action danger"
                                             onClick={() => handleCancelClick(order)}
-                                            style={{ 
-                                                background: '#dc3545', 
+                                            style={{
+                                                background: '#dc3545',
                                                 color: 'white',
                                                 border: 'none'
                                             }}
@@ -654,12 +651,12 @@ const Profile = () => {
         <>
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h5 className="fw-bold mb-0">My Addresses</h5>
-                <button 
+                <button
                     className="btn btn-sm"
                     style={{ background: 'var(--shop-pink)', color: 'white' }}
                     onClick={() => {
                         setEditingAddress(null);
-                        setAddressForm({ label: '', name: '', phone: '', street: '', city: '', province: '', zip: '' });
+                        setAddressForm({ label: '', name: user.name || '', phone: '', street: '', city: '', province: '', zip: '' });
                         setShowAddressModal(true);
                     }}
                 >
@@ -675,14 +672,14 @@ const Profile = () => {
                             <span className="badge bg-secondary ms-2">{addr.label}</span>
                         </div>
                         <div>
-                            <button 
+                            <button
                                 className="btn btn-link btn-sm text-primary"
                                 onClick={() => {
                                     setEditingAddress(addr);
                                     // Parse address string into separate fields
                                     const addressStr = addr.address || '';
                                     const parts = addressStr.split(',').map(p => p.trim());
-                                    
+
                                     let street = '';
                                     let city = '';
                                     let province = '';
@@ -734,7 +731,7 @@ const Profile = () => {
                                 Edit
                             </button>
                             {!addr.isDefault && (
-                                <button 
+                                <button
                                     className="btn btn-link btn-sm text-danger"
                                     onClick={() => {
                                         const updated = addresses.filter(a => a.id !== addr.id);
@@ -751,7 +748,7 @@ const Profile = () => {
                     <div className="address-phone">{addr.phone}</div>
                     <div className="address-detail mt-2">{addr.address}</div>
                     {!addr.isDefault && (
-                        <button 
+                        <button
                             className="btn btn-outline-secondary btn-sm mt-3"
                             onClick={() => {
                                 const updated = addresses.map(a => ({
@@ -826,11 +823,11 @@ const Profile = () => {
                 </span>
             </div>
 
-            <div 
+            <div
                 className="messages-container rounded p-3 mb-3"
-                style={{ 
-                    background: '#f8f9fa', 
-                    height: '400px', 
+                style={{
+                    background: '#f8f9fa',
+                    height: '400px',
                     overflowY: 'auto',
                     display: 'flex',
                     flexDirection: 'column',
@@ -838,11 +835,11 @@ const Profile = () => {
                 }}
             >
                 {messages.map((msg, index) => (
-                    <div 
+                    <div
                         key={index}
                         className={`d-flex ${msg.sender === 'user' ? 'justify-content-end' : 'justify-content-start'}`}
                     >
-                        <div 
+                        <div
                             className="message-bubble p-3 rounded-3"
                             style={{
                                 maxWidth: '75%',
@@ -853,7 +850,7 @@ const Profile = () => {
                         >
                             {msg.sender === 'shop' && (
                                 <div className="d-flex align-items-center mb-2">
-                                    <div 
+                                    <div
                                         className="rounded-circle d-flex align-items-center justify-content-center me-2"
                                         style={{ width: '24px', height: '24px', background: 'var(--shop-pink-light)' }}
                                     >
@@ -872,8 +869,8 @@ const Profile = () => {
             </div>
 
             <div className="input-group">
-                <input 
-                    type="text" 
+                <input
+                    type="text"
                     className="form-control rounded-pill rounded-end"
                     placeholder="Type your message..."
                     value={newMessage}
@@ -881,7 +878,7 @@ const Profile = () => {
                     onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                     style={{ borderRight: 'none' }}
                 />
-                <button 
+                <button
                     className="btn rounded-pill rounded-start px-4"
                     style={{ background: 'var(--shop-pink)', color: 'white', borderLeft: 'none' }}
                     onClick={sendMessage}
@@ -942,9 +939,9 @@ const Profile = () => {
 
                             <hr />
 
-                            <div 
+                            <div
                                 className="profile-menu-item text-danger"
-                                onClick={() => navigate('/login')}
+                                onClick={logout}
                                 style={{ cursor: 'pointer' }}
                             >
                                 <i className="fas fa-sign-out-alt"></i>
@@ -973,111 +970,61 @@ const Profile = () => {
                         <div className="modal-body-custom">
                             <div className="form-group">
                                 <label className="form-label">Label</label>
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     className="form-control-custom"
                                     value={addressForm.label}
-                                    onChange={e => setAddressForm({...addressForm, label: e.target.value})}
+                                    onChange={e => setAddressForm({ ...addressForm, label: e.target.value })}
                                     placeholder="e.g., Home, Office"
                                 />
                             </div>
                             <div className="form-group">
                                 <label className="form-label">Full Name</label>
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     className="form-control-custom"
                                     value={addressForm.name}
-                                    onChange={e => setAddressForm({...addressForm, name: e.target.value})}
+                                    onChange={e => setAddressForm({ ...addressForm, name: e.target.value })}
                                 />
                             </div>
                             <div className="form-group">
                                 <label className="form-label">Phone Number</label>
-                                <input 
-                                    type="tel" 
+                                <input
+                                    type="tel"
                                     className="form-control-custom"
                                     value={addressForm.phone}
-                                    onChange={e => setAddressForm({...addressForm, phone: e.target.value})}
+                                    onChange={e => setAddressForm({ ...addressForm, phone: e.target.value })}
                                 />
                             </div>
                             <div className="form-group">
                                 <label className="form-label">Street Address</label>
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     className="form-control-custom"
                                     value={addressForm.street}
-                                    onChange={e => setAddressForm({...addressForm, street: e.target.value})}
+                                    onChange={e => setAddressForm({ ...addressForm, street: e.target.value })}
                                     placeholder="e.g., 123 Sampaguita St., Brgy. Maligaya"
                                 />
                             </div>
-                            <div className="row">
-                                <div className="col-md-6">
-                                    <div className="form-group">
-                                        <label className="form-label">City</label>
-                                        <input 
-                                            type="text" 
-                                            className="form-control-custom"
-                                            value={addressForm.city}
-                                            onChange={e => setAddressForm({...addressForm, city: e.target.value})}
-                                            placeholder="e.g., Quezon City"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="col-md-6">
-                                    <div className="form-group">
-                                        <label className="form-label">Province</label>
-                                        <input 
-                                            type="text" 
-                                            className="form-control-custom"
-                                            value={addressForm.province}
-                                            onChange={e => setAddressForm({...addressForm, province: e.target.value})}
-                                            placeholder="e.g., Metro Manila"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label">Postal Code</label>
-                                <input 
-                                    type="text" 
-                                    className="form-control-custom"
-                                    value={addressForm.zip}
-                                    onChange={e => setAddressForm({...addressForm, zip: e.target.value})}
-                                    placeholder="e.g., 1100"
-                                />
-                            </div>
-                        </div>
-                        <div className="modal-footer-custom">
-                            <button 
-                                className="btn btn-outline-secondary"
-                                onClick={() => {
-                                    setShowAddressModal(false);
-                                    setAddressForm({ label: '', name: '', phone: '', street: '', city: '', province: '', zip: '' });
-                                    setEditingAddress(null);
-                                }}
-                            >
-                                Cancel
-                            </button>
-                            <button 
+                            <button
                                 className="btn"
                                 style={{ background: 'var(--shop-pink)', color: 'white' }}
                                 onClick={() => {
-                                    if (!addressForm.label || !addressForm.name || !addressForm.phone || !addressForm.street || !addressForm.city) {
-                                        alert('Please fill in all required fields (Label, Name, Phone, Street, City)');
+                                    if (!addressForm.label || !addressForm.name || !addressForm.phone || !addressForm.street) {
+                                        alert('Please fill in all required fields (Label, Name, Phone, Street)');
                                         return;
                                     }
 
                                     // Construct full address string from form fields
-                                    const addressParts = [addressForm.street];
-                                    if (addressForm.city) addressParts.push(addressForm.city);
-                                    if (addressForm.province) addressParts.push(addressForm.province);
-                                    const fullAddress = addressParts.join(', ') + (addressForm.zip ? ` ${addressForm.zip}` : '');
+                                    // Only save street address as requested (City/Province implied)
+                                    const fullAddress = addressForm.street;
 
                                     let updated;
                                     if (editingAddress) {
-                                        updated = addresses.map(a => 
-                                            a.id === editingAddress.id 
-                                                ? { 
-                                                    ...a, 
+                                        updated = addresses.map(a =>
+                                            a.id === editingAddress.id
+                                                ? {
+                                                    ...a,
                                                     label: addressForm.label,
                                                     name: addressForm.name,
                                                     phone: addressForm.phone,
@@ -1097,9 +1044,9 @@ const Profile = () => {
                                         }];
                                     }
                                     setAddresses(updated);
-                                    localStorage.setItem('userAddresses', JSON.stringify(updated));
+                                    localStorage.setItem(`userAddresses_${user?.email}`, JSON.stringify(updated));
                                     setShowAddressModal(false);
-                                    setAddressForm({ label: '', name: '', phone: '', street: '', city: '', province: '', zip: '' });
+                                    setAddressForm({ label: '', name: user.name || '', phone: '', street: '', city: '', province: '', zip: '' });
                                     setEditingAddress(null);
                                 }}
                             >
@@ -1112,8 +1059,8 @@ const Profile = () => {
 
             {/* Cancellation Confirmation Modal */}
             {showCancelModal && (
-                <div 
-                    className="modal-overlay" 
+                <div
+                    className="modal-overlay"
                     onClick={() => {
                         setShowCancelModal(false);
                         setOrderToCancel(null);
@@ -1131,8 +1078,8 @@ const Profile = () => {
                         zIndex: 1000
                     }}
                 >
-                    <div 
-                        className="modal-content-custom" 
+                    <div
+                        className="modal-content-custom"
                         onClick={e => e.stopPropagation()}
                         style={{
                             backgroundColor: 'white',
@@ -1190,8 +1137,8 @@ const Profile = () => {
 
             {/* Waiting for Approval Modal */}
             {showWaitingModal && (
-                <div 
-                    className="modal-overlay" 
+                <div
+                    className="modal-overlay"
                     onClick={() => setShowWaitingModal(false)}
                     style={{
                         position: 'fixed',
@@ -1206,8 +1153,8 @@ const Profile = () => {
                         zIndex: 1000
                     }}
                 >
-                    <div 
-                        className="modal-content-custom" 
+                    <div
+                        className="modal-content-custom"
                         onClick={e => e.stopPropagation()}
                         style={{
                             backgroundColor: 'white',

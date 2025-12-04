@@ -13,6 +13,7 @@ const Signup = () => {
         confirmPassword: ''
     });
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
 
     const handleChange = (e) => {
@@ -25,6 +26,7 @@ const Signup = () => {
     const handleSignup = async (e) => {
         e.preventDefault();
         setError('');
+        setSuccess('');
 
         // Validate passwords match
         if (formData.password !== formData.confirmPassword) {
@@ -41,19 +43,17 @@ const Signup = () => {
         setLoading(true);
 
         try {
-            const response = await authAPI.register({
+            await authAPI.register({
                 email: formData.email,
                 password: formData.password,
                 name: `${formData.firstName} ${formData.lastName}`
             });
 
             // Registration successful
-            const { user, token } = response.data;
-            localStorage.setItem('token', token);
-            localStorage.setItem('currentUser', JSON.stringify(user));
-
-            // Redirect to home page
-            navigate('/');
+            setSuccess('Registration successful! Redirecting to login...');
+            setTimeout(() => {
+                navigate('/login');
+            }, 2000);
         } catch (err) {
             console.error('Signup error:', err);
             setError(err.response?.data?.message || 'Registration failed. Please try again.');
@@ -80,6 +80,11 @@ const Signup = () => {
                         {error && (
                             <div className="alert alert-danger" role="alert">
                                 {error}
+                            </div>
+                        )}
+                        {success && (
+                            <div className="alert alert-success" role="alert">
+                                {success}
                             </div>
                         )}
 

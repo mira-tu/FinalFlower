@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import '../styles/Home.css';
+import { productAPI } from '../config/api';
 import eventImg from '../assets/pictures/EVENTSPECIFIC.jpg';
 import customImg from '../assets/pictures/CUSTOMIZED.jpg';
 import specialImg from '../assets/pictures/SPECIALORDERPAGE.jpg';
@@ -100,7 +101,8 @@ const Home = ({ addToCart }) => {
     const [showWishlistPopup, setShowWishlistPopup] = useState(false);
     const [popupMessage, setPopupMessage] = useState('');
     const [showCartPopup, setShowCartPopup] = useState(false);
-    const [displayProducts, setDisplayProducts] = useState(products);
+    const [displayProducts, setDisplayProducts] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const savedWishlist = localStorage.getItem('wishlist');
@@ -112,29 +114,64 @@ const Home = ({ addToCart }) => {
             }
         }
 
-        // Load products from admin catalogue if available
-        const catalogueProducts = JSON.parse(localStorage.getItem('catalogueProducts') || '[]');
-        if (catalogueProducts.length > 0) {
-            // Merge with default products, prioritizing catalogue products
-            const catalogueMap = new Map(catalogueProducts.map(p => [p.name, p]));
-            const mergedProducts = products.map(p => {
-                const catalogueProduct = catalogueMap.get(p.name);
-                return catalogueProduct ? { ...p, ...catalogueProduct } : p;
-            });
-            // Add new products from catalogue that don't exist in default list
-            catalogueProducts.forEach(cp => {
-                if (!products.find(p => p.name === cp.name)) {
-                    mergedProducts.push(cp);
-                }
-            });
-            setDisplayProducts(mergedProducts);
-        }
+        // Fetch products from API
+        fetchProducts();
     }, []);
+
+    const fetchProducts = async () => {
+        try {
+            console.log('Fetching products from API...');
+            const response = await productAPI.getAll();
+            console.log('API Response:', response.data);
+
+            if (response.data && response.data.products) {
+                console.log(`Found ${response.data.products.length} products from API`);
+                // Map API products with local images
+                const apiProducts = response.data.products.map(p => {
+                    // Find matching local product by name to get the image
+                    const localProduct = products.find(lp => lp.name === p.name);
+                    return {
+                        id: p.id, // Use database ID
+                        name: p.name,
+                        price: p.price,
+                        category: getCategoryName(p.category_id),
+                        image: localProduct ? localProduct.image : p.image_url,
+                        stock: p.stock_quantity
+                    };
+                });
+                setDisplayProducts(apiProducts);
+            } else {
+                console.log('No products in API response, using local products');
+                // Fallback to local products if API fails
+                setDisplayProducts(products);
+            }
+        } catch (error) {
+            console.error('Error fetching products:', error);
+            console.error('Error details:', error.response?.data || error.message);
+            // Fallback to local products
+            console.log('Using local fallback products');
+            setDisplayProducts(products);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const getCategoryName = (categoryId) => {
+        const categoryMap = {
+            1: 'All Souls Day',
+            2: 'Get Well Soon',
+            3: 'Graduation',
+            4: 'Mothers Day',
+            5: 'Sympathy',
+            6: 'Valentines'
+        };
+        return categoryMap[categoryId] || 'Other';
+    };
 
     const handleAddToCart = (product, e) => {
         e.preventDefault();
         e.stopPropagation();
-        addToCart(product.name, product.price, product.image);
+        addToCart(product.name, product.price, product.image, product.id);
         setShowCartPopup(true);
         setTimeout(() => setShowCartPopup(false), 2000);
     };
