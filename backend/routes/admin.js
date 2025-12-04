@@ -395,4 +395,36 @@ router.delete('/employees/:id', adminAuth, async (req, res) => {
     }
 });
 
+// =====================================================
+// REQUESTS MANAGEMENT
+// =====================================================
+
+// Get all requests
+router.get('/requests', adminAuth, async (req, res) => {
+    try {
+        const [requests] = await pool.query(`
+            SELECT r.*, u.name as user_name, u.email as user_email 
+            FROM requests r 
+            LEFT JOIN users u ON r.user_id = u.id 
+            ORDER BY r.created_at DESC
+        `);
+        res.json({ success: true, requests });
+    } catch (error) {
+        console.error('Get requests error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// Update request status
+router.put('/requests/:id/status', adminAuth, async (req, res) => {
+    try {
+        const { status } = req.body;
+        await pool.query('UPDATE requests SET status = ? WHERE id = ?', [status, req.params.id]);
+        res.json({ success: true, message: 'Status updated' });
+    } catch (error) {
+        console.error('Update request status error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
 module.exports = router;

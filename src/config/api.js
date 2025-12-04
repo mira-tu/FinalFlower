@@ -30,10 +30,12 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 401) {
+        const originalRequest = error.config;
+        // Prevent redirect loop for auth routes
+        if (error.response?.status === 401 && !originalRequest.url.includes('/auth/login') && !originalRequest.url.includes('/auth/admin/login')) {
             // Unauthorized - clear token and redirect to login
             localStorage.removeItem('token');
-            localStorage.removeItem('user');
+            localStorage.removeItem('currentUser'); // Updated to match App.jsx key
             window.location.href = '/login';
         }
         return Promise.reject(error);
@@ -59,6 +61,15 @@ export const productAPI = {
 
 export const categoryAPI = {
     getAll: () => api.get('/categories')
+};
+
+export const cartAPI = {
+    get: () => api.get('/cart'),
+    add: (data) => api.post('/cart/add', data),
+    update: (id, data) => api.put(`/cart/${id}`, data),
+    delete: (id) => api.delete(`/cart/${id}`),
+    clear: () => api.delete('/cart'),
+    getCount: () => api.get('/cart/count')
 };
 
 export const orderAPI = {

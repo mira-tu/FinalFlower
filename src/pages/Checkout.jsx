@@ -9,7 +9,7 @@ const paymentMethods = [
 
 const pickupTimes = ['9:00 AM', '10:00 AM', '11:00 AM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM'];
 
-const Checkout = ({ setCart }) => {
+const Checkout = ({ setCart, user }) => {
     const navigate = useNavigate();
     const [checkoutItems, setCheckoutItems] = useState([]);
     const [orderType, setOrderType] = useState('ecommerce');
@@ -20,7 +20,7 @@ const Checkout = ({ setCart }) => {
     const [showQRModal, setShowQRModal] = useState(false);
     const [receiptFile, setReceiptFile] = useState(null);
     const [receiptPreview, setReceiptPreview] = useState(null);
-    
+
     const [address, setAddress] = useState({
         name: 'Maria Santos',
         phone: '+63 912 345 6789',
@@ -30,11 +30,28 @@ const Checkout = ({ setCart }) => {
         zip: '1100'
     });
     const [savedAddresses, setSavedAddresses] = useState([]);
+
+    useEffect(() => {
+        if (user?.email) {
+            const saved = localStorage.getItem(`userAddresses_${user.email}`);
+            if (saved) {
+                setSavedAddresses(JSON.parse(saved));
+            } else {
+                setSavedAddresses([]);
+            }
+        } else {
+            // Fallback for guest or legacy
+            const saved = localStorage.getItem('userAddresses');
+            if (saved) {
+                setSavedAddresses(JSON.parse(saved));
+            }
+        }
+    }, [user]);
     const [selectedAddressId, setSelectedAddressId] = useState(null);
     const [showAddAddressModal, setShowAddAddressModal] = useState(false);
     const [newAddress, setNewAddress] = useState({
         label: '',
-        name: '',
+        name: user?.name || '',
         phone: '',
         address: ''
     });
@@ -44,7 +61,7 @@ const Checkout = ({ setCart }) => {
         // Address format: "123 Sampaguita St., Brgy. Maligaya, Quezon City, Metro Manila 1100"
         const addressStr = addressObj.address || '';
         const parts = addressStr.split(',').map(p => p.trim());
-        
+
         let street = '';
         let city = '';
         let province = '';
@@ -111,13 +128,11 @@ const Checkout = ({ setCart }) => {
         if (address.city) addressParts.push(address.city);
         if (address.province) addressParts.push(address.province);
         const fullAddress = addressParts.join(', ') + (address.zip ? ` ${address.zip}` : '');
-        
+
         // Create new address object
         const newId = savedAddresses.length > 0 ? Math.max(...savedAddresses.map(a => a.id)) + 1 : 1;
         const addressToSave = {
             id: newId,
-            label: newAddress.label,
-            name: address.name,
             phone: address.phone,
             address: fullAddress,
             isDefault: savedAddresses.length === 0
@@ -126,14 +141,19 @@ const Checkout = ({ setCart }) => {
         // Save to localStorage
         const updated = [...savedAddresses, addressToSave];
         setSavedAddresses(updated);
-        localStorage.setItem('userAddresses', JSON.stringify(updated));
+
+        if (user?.email) {
+            localStorage.setItem(`userAddresses_${user.email}`, JSON.stringify(updated));
+        } else {
+            localStorage.setItem('userAddresses', JSON.stringify(updated));
+        }
 
         // Select the new address
         parseAddressToForm(addressToSave);
         setSelectedAddressId(newId);
 
         // Reset form and close modal
-        setNewAddress({ label: '', name: '', phone: '', address: '' });
+        setNewAddress({ label: '', name: user?.name || '', phone: '', address: '' });
         setShowAddAddressModal(false);
     };
 
@@ -200,14 +220,14 @@ const Checkout = ({ setCart }) => {
             alert('Please select a pickup time');
             return;
         }
-        
+
         if (selectedPayment === 'gcash' && !receiptFile) {
             alert('Please upload your GCash payment receipt');
             return;
         }
-        
+
         setIsProcessing(true);
-        
+
         setTimeout(() => {
             const orderId = 'FLR' + Date.now().toString().slice(-8);
             const orderData = {
@@ -226,10 +246,10 @@ const Checkout = ({ setCart }) => {
                 pickupTime: deliveryMethod === 'pickup' ? selectedPickupTime : null,
                 receipt: selectedPayment === 'gcash' ? receiptPreview : null,
             };
-            
+
             const existingOrders = JSON.parse(localStorage.getItem('orders') || '[]');
             localStorage.setItem('orders', JSON.stringify([orderData, ...existingOrders]));
-            
+
             // Create notification
             const notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
             const newNotification = {
@@ -243,16 +263,16 @@ const Checkout = ({ setCart }) => {
                 link: `/order-tracking/${orderId}`
             };
             localStorage.setItem('notifications', JSON.stringify([newNotification, ...notifications]));
-            
+
             const currentCart = JSON.parse(localStorage.getItem('cart') || '[]');
             const checkoutItemNames = checkoutItems.map(item => item.name);
             const remainingCart = currentCart.filter(item => !checkoutItemNames.includes(item.name));
             localStorage.setItem('cart', JSON.stringify(remainingCart));
             localStorage.removeItem('checkoutItems');
             localStorage.removeItem('orderType');
-            
+
             if (setCart) setCart(remainingCart);
-            
+
             navigate(`/order-success/${orderId}`);
         }, 1500);
     };
@@ -290,9 +310,9 @@ const Checkout = ({ setCart }) => {
                                 <i className="fas fa-truck"></i>
                                 Delivery Method
                             </h5>
-                            
+
                             <div className="d-flex gap-3 mb-3">
-                                <div 
+                                <div
                                     className={`payment-option flex-grow-1 ${deliveryMethod === 'delivery' ? 'selected' : ''}`}
                                     onClick={() => setDeliveryMethod('delivery')}
                                     style={{ cursor: 'pointer' }}
@@ -305,15 +325,15 @@ const Checkout = ({ setCart }) => {
                                         <p>We'll deliver to your address</p>
                                     </div>
                                     <div className="form-check ms-auto">
-                                        <input 
-                                            type="radio" 
+                                        <input
+                                            type="radio"
                                             className="form-check-input"
                                             checked={deliveryMethod === 'delivery'}
                                             onChange={() => setDeliveryMethod('delivery')}
                                         />
                                     </div>
                                 </div>
-                                <div 
+                                <div
                                     className={`payment-option flex-grow-1 ${deliveryMethod === 'pickup' ? 'selected' : ''}`}
                                     onClick={() => setDeliveryMethod('pickup')}
                                     style={{ cursor: 'pointer' }}
@@ -326,8 +346,8 @@ const Checkout = ({ setCart }) => {
                                         <p>Pick up at our store</p>
                                     </div>
                                     <div className="form-check ms-auto">
-                                        <input 
-                                            type="radio" 
+                                        <input
+                                            type="radio"
                                             className="form-check-input"
                                             checked={deliveryMethod === 'pickup'}
                                             onChange={() => setDeliveryMethod('pickup')}
@@ -367,23 +387,10 @@ const Checkout = ({ setCart }) => {
                         {/* Delivery Address - Only show if delivery method */}
                         {deliveryMethod === 'delivery' && (
                             <div className="checkout-section">
-                                <div className="d-flex justify-content-between align-items-center mb-3">
-                                    <h5 className="section-title mb-0">
-                                        <i className="fas fa-map-marker-alt"></i>
-                                        Delivery Address
-                                    </h5>
-                                    <div className="d-flex gap-2">
-                                        <button 
-                                            className="btn btn-sm btn-outline-primary"
-                                            onClick={() => setShowAddAddressModal(true)}
-                                        >
-                                            <i className="fas fa-plus me-1"></i>Add New Address
-                                        </button>
-                                        <Link to="/profile" className="btn btn-sm btn-outline-secondary">
-                                            <i className="fas fa-cog me-1"></i>Manage
-                                        </Link>
-                                    </div>
-                                </div>
+                                <h5 className="section-title mb-3">
+                                    <i className="fas fa-map-marker-alt"></i>
+                                    Delivery Address
+                                </h5>
 
                                 {savedAddresses.length > 0 && (
                                     <div className="mb-3">
@@ -408,60 +415,33 @@ const Checkout = ({ setCart }) => {
                                         </select>
                                     </div>
                                 )}
-                                
+
                                 <div className="row g-3">
                                     <div className="col-md-6">
                                         <label className="form-label small text-muted">Full Name</label>
-                                        <input 
-                                            type="text" 
+                                        <input
+                                            type="text"
                                             className="form-control"
                                             value={address.name}
-                                            onChange={e => setAddress({...address, name: e.target.value})}
+                                            onChange={e => setAddress({ ...address, name: e.target.value })}
                                         />
                                     </div>
                                     <div className="col-md-6">
                                         <label className="form-label small text-muted">Phone Number</label>
-                                        <input 
-                                            type="tel" 
+                                        <input
+                                            type="tel"
                                             className="form-control"
                                             value={address.phone}
-                                            onChange={e => setAddress({...address, phone: e.target.value})}
+                                            onChange={e => setAddress({ ...address, phone: e.target.value })}
                                         />
                                     </div>
                                     <div className="col-12">
                                         <label className="form-label small text-muted">Street Address</label>
-                                        <input 
-                                            type="text" 
+                                        <input
+                                            type="text"
                                             className="form-control"
                                             value={address.street}
-                                            onChange={e => setAddress({...address, street: e.target.value})}
-                                        />
-                                    </div>
-                                    <div className="col-md-4">
-                                        <label className="form-label small text-muted">City</label>
-                                        <input 
-                                            type="text" 
-                                            className="form-control"
-                                            value={address.city}
-                                            onChange={e => setAddress({...address, city: e.target.value})}
-                                        />
-                                    </div>
-                                    <div className="col-md-4">
-                                        <label className="form-label small text-muted">Province</label>
-                                        <input 
-                                            type="text" 
-                                            className="form-control"
-                                            value={address.province}
-                                            onChange={e => setAddress({...address, province: e.target.value})}
-                                        />
-                                    </div>
-                                    <div className="col-md-4">
-                                        <label className="form-label small text-muted">ZIP Code</label>
-                                        <input 
-                                            type="text" 
-                                            className="form-control"
-                                            value={address.zip}
-                                            onChange={e => setAddress({...address, zip: e.target.value})}
+                                            onChange={e => setAddress({ ...address, street: e.target.value })}
                                         />
                                     </div>
                                 </div>
@@ -474,12 +454,12 @@ const Checkout = ({ setCart }) => {
                                 <i className="fas fa-box"></i>
                                 Order Items ({checkoutItems.length})
                             </h5>
-                            
+
                             {checkoutItems.map((item, index) => (
                                 <div key={index} className="checkout-item">
-                                    <img 
-                                        src={item.image} 
-                                        alt={item.name} 
+                                    <img
+                                        src={item.image}
+                                        alt={item.name}
                                         className="checkout-item-img"
                                         onError={(e) => e.target.src = 'https://via.placeholder.com/80'}
                                     />
@@ -500,9 +480,9 @@ const Checkout = ({ setCart }) => {
                                 <i className="fas fa-credit-card"></i>
                                 Payment Method
                             </h5>
-                            
+
                             {paymentMethods.map(method => (
-                                <div 
+                                <div
                                     key={method.id}
                                     className={`payment-option ${selectedPayment === method.id ? 'selected' : ''}`}
                                     onClick={() => handlePaymentChange(method.id)}
@@ -515,8 +495,8 @@ const Checkout = ({ setCart }) => {
                                         <p>{method.description}</p>
                                     </div>
                                     <div className="form-check ms-auto">
-                                        <input 
-                                            type="radio" 
+                                        <input
+                                            type="radio"
                                             className="form-check-input"
                                             checked={selectedPayment === method.id}
                                             onChange={() => handlePaymentChange(method.id)}
@@ -524,7 +504,7 @@ const Checkout = ({ setCart }) => {
                                     </div>
                                 </div>
                             ))}
-                            
+
                             {/* GCash QR Code and Receipt Upload */}
                             {selectedPayment === 'gcash' && (
                                 <div className="mt-3 p-3 rounded" style={{ background: '#f8f9fa', border: '2px dashed var(--shop-pink)' }}>
@@ -533,38 +513,38 @@ const Checkout = ({ setCart }) => {
                                             <i className="fas fa-qrcode me-2" style={{ color: 'var(--shop-pink)' }}></i>
                                             Scan to Pay via GCash
                                         </h6>
-                                        <button 
+                                        <button
                                             className="btn btn-sm btn-outline-primary"
                                             onClick={() => setShowQRModal(true)}
                                         >
                                             <i className="fas fa-eye me-2"></i>View QR Code
                                         </button>
                                     </div>
-                                    
+
                                     <div className="mt-3">
                                         <label className="form-label fw-bold small">
                                             <i className="fas fa-receipt me-2" style={{ color: 'var(--shop-pink)' }}></i>
                                             Upload Payment Receipt (Screenshot)
                                         </label>
-                                        <input 
-                                            type="file" 
+                                        <input
+                                            type="file"
                                             className="form-control form-control-sm"
                                             accept="image/*"
                                             onChange={handleReceiptUpload}
                                         />
                                         {receiptPreview && (
                                             <div className="mt-2">
-                                                <img 
-                                                    src={receiptPreview} 
-                                                    alt="Receipt Preview" 
-                                                    style={{ 
-                                                        maxWidth: '100%', 
-                                                        maxHeight: '200px', 
+                                                <img
+                                                    src={receiptPreview}
+                                                    alt="Receipt Preview"
+                                                    style={{
+                                                        maxWidth: '100%',
+                                                        maxHeight: '200px',
                                                         borderRadius: '8px',
                                                         border: '1px solid #ddd'
                                                     }}
                                                 />
-                                                <button 
+                                                <button
                                                     className="btn btn-sm btn-link text-danger mt-1 p-0"
                                                     onClick={() => {
                                                         setReceiptFile(null);
@@ -588,7 +568,7 @@ const Checkout = ({ setCart }) => {
                     <div className="col-lg-4">
                         <div className="order-summary-card">
                             <h5 className="fw-bold mb-4">Order Summary</h5>
-                            
+
                             <div className="summary-row">
                                 <span>Subtotal ({checkoutItems.reduce((acc, item) => acc + (item.qty || 1), 0)} items)</span>
                                 <span>₱{subtotal.toLocaleString()}</span>
@@ -609,13 +589,13 @@ const Checkout = ({ setCart }) => {
                                     Free shipping for orders ₱2,000+
                                 </div>
                             )}
-                            
+
                             <div className="summary-row total">
                                 <span>Total</span>
                                 <span>₱{total.toLocaleString()}</span>
                             </div>
 
-                            <button 
+                            <button
                                 className="btn-place-order"
                                 onClick={handlePlaceOrder}
                                 disabled={isProcessing}
@@ -653,7 +633,7 @@ const Checkout = ({ setCart }) => {
                         </div>
                         <div className="modal-body-custom text-center">
                             <div className="mb-3">
-                                <div 
+                                <div
                                     style={{
                                         width: '250px',
                                         height: '250px',
@@ -696,20 +676,20 @@ const Checkout = ({ setCart }) => {
                                     <i className="fas fa-receipt me-2" style={{ color: 'var(--shop-pink)' }}></i>
                                     Upload Payment Receipt
                                 </label>
-                                <input 
-                                    type="file" 
+                                <input
+                                    type="file"
                                     className="form-control form-control-sm"
                                     accept="image/*"
                                     onChange={handleReceiptUpload}
                                 />
                                 {receiptPreview && (
                                     <div className="mt-2">
-                                        <img 
-                                            src={receiptPreview} 
-                                            alt="Receipt Preview" 
-                                            style={{ 
-                                                maxWidth: '100%', 
-                                                maxHeight: '150px', 
+                                        <img
+                                            src={receiptPreview}
+                                            alt="Receipt Preview"
+                                            style={{
+                                                maxWidth: '100%',
+                                                maxHeight: '150px',
                                                 borderRadius: '8px',
                                                 border: '1px solid #ddd'
                                             }}
@@ -717,7 +697,7 @@ const Checkout = ({ setCart }) => {
                                     </div>
                                 )}
                             </div>
-                            <button 
+                            <button
                                 className="btn w-100"
                                 style={{ background: 'var(--shop-pink)', color: 'white' }}
                                 onClick={() => setShowQRModal(false)}
@@ -742,77 +722,77 @@ const Checkout = ({ setCart }) => {
                         <div className="modal-body-custom">
                             <div className="form-group">
                                 <label className="form-label">Label</label>
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     className="form-control-custom"
                                     value={newAddress.label}
-                                    onChange={e => setNewAddress({...newAddress, label: e.target.value})}
+                                    onChange={e => setNewAddress({ ...newAddress, label: e.target.value })}
                                     placeholder="e.g., Home, Office"
                                 />
                             </div>
                             <div className="form-group">
                                 <label className="form-label">Full Name</label>
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     className="form-control-custom"
                                     value={address.name}
-                                    onChange={e => setAddress({...address, name: e.target.value})}
+                                    onChange={e => setAddress({ ...address, name: e.target.value })}
                                 />
                             </div>
                             <div className="form-group">
                                 <label className="form-label">Phone Number</label>
-                                <input 
-                                    type="tel" 
+                                <input
+                                    type="tel"
                                     className="form-control-custom"
                                     value={address.phone}
-                                    onChange={e => setAddress({...address, phone: e.target.value})}
+                                    onChange={e => setAddress({ ...address, phone: e.target.value })}
                                 />
                             </div>
                             <div className="form-group">
                                 <label className="form-label">Street Address</label>
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     className="form-control-custom"
                                     value={address.street}
-                                    onChange={e => setAddress({...address, street: e.target.value})}
+                                    onChange={e => setAddress({ ...address, street: e.target.value })}
                                 />
                             </div>
                             <div className="row">
                                 <div className="col-md-6">
                                     <div className="form-group">
                                         <label className="form-label">City</label>
-                                        <input 
-                                            type="text" 
+                                        <input
+                                            type="text"
                                             className="form-control-custom"
                                             value={address.city}
-                                            onChange={e => setAddress({...address, city: e.target.value})}
+                                            onChange={e => setAddress({ ...address, city: e.target.value })}
                                         />
                                     </div>
                                 </div>
                                 <div className="col-md-6">
                                     <div className="form-group">
                                         <label className="form-label">Province</label>
-                                        <input 
-                                            type="text" 
+                                        <input
+                                            type="text"
                                             className="form-control-custom"
                                             value={address.province}
-                                            onChange={e => setAddress({...address, province: e.target.value})}
+                                            onChange={e => setAddress({ ...address, province: e.target.value })}
                                         />
                                     </div>
                                 </div>
                             </div>
                             <div className="form-group">
                                 <label className="form-label">Zip Code</label>
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     className="form-control-custom"
                                     value={address.zip}
-                                    onChange={e => setAddress({...address, zip: e.target.value})}
+                                    onChange={e => setAddress({ ...address, zip: e.target.value })}
                                 />
                             </div>
                         </div>
                         <div className="modal-footer-custom">
-                            <button 
+                            <button
                                 className="btn btn-outline-secondary"
                                 onClick={() => {
                                     setShowAddAddressModal(false);
@@ -821,7 +801,7 @@ const Checkout = ({ setCart }) => {
                             >
                                 Cancel
                             </button>
-                            <button 
+                            <button
                                 className="btn"
                                 style={{ background: 'var(--shop-pink)', color: 'white' }}
                                 onClick={handleSaveNewAddress}

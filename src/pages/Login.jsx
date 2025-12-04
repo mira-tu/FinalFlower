@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { authAPI } from '../config/api';
 import '../styles/Auth.css';
 
-const Login = () => {
+const Login = ({ onLogin }) => {
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -23,8 +23,7 @@ const Login = () => {
 
                 // Admin/Employee login successful
                 const { user, token } = response.data;
-                localStorage.setItem('token', token);
-                localStorage.setItem('currentUser', JSON.stringify(user));
+                onLogin(user, token);
                 navigate('/admin/dashboard');
                 return;
             } catch (adminError) {
@@ -33,8 +32,7 @@ const Login = () => {
 
                 // Customer login successful
                 const { user, token } = response.data;
-                localStorage.setItem('token', token);
-                localStorage.setItem('currentUser', JSON.stringify(user));
+                onLogin(user, token);
                 navigate('/');
                 return;
             }
