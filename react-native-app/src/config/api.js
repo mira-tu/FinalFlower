@@ -97,7 +97,18 @@ export const adminAPI = {
     // Notifications
     getAllNotifications: () => api.get('/admin/notifications'),
     sendNotification: (data) => api.post('/admin/notifications', data),
-    deleteNotification: (id) => api.delete(`/admin/notifications/${id}`)
+    deleteNotification: (id) => api.delete(`/admin/notifications/${id}`),
+
+    // Content Management
+    getAbout: () => api.get('/admin/content/about'),
+    updateAbout: (data) => api.put('/admin/content/about', data),
+    getContact: () => api.get('/admin/content/contact'),
+    updateContact: (data) => api.put('/admin/content/contact', data),
+
+    // Employee Management
+    getEmployees: () => api.get('/admin/employees'),
+    addEmployee: (data) => api.post('/admin/employees', data),
+    deleteEmployee: (id) => api.delete(`/admin/employees/${id}`)
 };
 
 export const uploadAPI = {

@@ -89,6 +89,12 @@ const AdminDashboard = () => {
         return <NotificationsTab />;
       case 'messaging':
         return <MessagingTab />;
+      case 'about':
+        return <AboutTab />;
+      case 'contact':
+        return <ContactTab />;
+      case 'employees':
+        return <EmployeesTab />;
       default:
         return <CatalogueTab />;
     }
@@ -198,6 +204,80 @@ const AdminDashboard = () => {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Menu Modal */}
+      <Modal
+        visible={menuVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.menuOverlay}
+          activeOpacity={1}
+          onPress={() => setMenuVisible(false)}
+        >
+          <View style={styles.menuContainer}>
+            <View style={styles.menuHeader}>
+              <Text style={styles.menuTitle}>Menu</Text>
+              <TouchableOpacity onPress={() => setMenuVisible(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setActiveTab('catalogue'); setMenuVisible(false); }}>
+                <Ionicons name="flower-outline" size={20} color="#ec4899" />
+                <Text style={styles.menuItemText}>Catalogue</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setActiveTab('orders'); setMenuVisible(false); }}>
+                <Ionicons name="cart-outline" size={20} color="#333" />
+                <Text style={styles.menuItemText}>Orders</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setActiveTab('stock'); setMenuVisible(false); }}>
+                <Ionicons name="cube-outline" size={20} color="#333" />
+                <Text style={styles.menuItemText}>Stock</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setActiveTab('notifications'); setMenuVisible(false); }}>
+                <Ionicons name="notifications-outline" size={20} color="#333" />
+                <Text style={styles.menuItemText}>Notifications</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setActiveTab('messaging'); setMenuVisible(false); }}>
+                <Ionicons name="chatbubbles-outline" size={20} color="#333" />
+                <Text style={styles.menuItemText}>Messaging</Text>
+              </TouchableOpacity>
+
+              <View style={styles.menuDivider} />
+
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setActiveTab('about'); setMenuVisible(false); }}>
+                <Ionicons name="information-circle-outline" size={20} color="#333" />
+                <Text style={styles.menuItemText}>About</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setActiveTab('contact'); setMenuVisible(false); }}>
+                <Ionicons name="call-outline" size={20} color="#333" />
+                <Text style={styles.menuItemText}>Contact</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setActiveTab('employees'); setMenuVisible(false); }}>
+                <Ionicons name="people-outline" size={20} color="#333" />
+                <Text style={styles.menuItemText}>Employees</Text>
+              </TouchableOpacity>
+
+              <View style={styles.menuDivider} />
+
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); handleLogout(); }}>
+                <Ionicons name="log-out-outline" size={20} color="#f44336" />
+                <Text style={[styles.menuItemText, { color: '#f44336' }]}>Logout</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -1326,6 +1406,354 @@ const MessagingTab = () => {
   );
 };
 
+// ==================== ABOUT TAB ====================
+const AboutTab = () => {
+  const [formData, setFormData] = useState({
+    description: '',
+    mission: '',
+    vision: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const response = await adminAPI.getAbout();
+      if (response.data.content) {
+        setFormData(response.data.content);
+      }
+    } catch (error) {
+      console.error('Error loading about:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      await adminAPI.updateAbout(formData);
+      Alert.alert('Success', 'About content updated');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update content');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading && !formData.description) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#ec4899" />
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={styles.tabContent}>
+      <Text style={styles.tabTitle}>About Page Management</Text>
+
+      <Text style={styles.inputLabel}>Our Story</Text>
+      <TextInput
+        style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+        multiline
+        value={formData.description}
+        onChangeText={(text) => setFormData({ ...formData, description: text })}
+        placeholder="Enter your shop's story..."
+      />
+
+      <Text style={styles.inputLabel}>Our Promise</Text>
+      <TextInput
+        style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+        multiline
+        value={formData.mission}
+        onChangeText={(text) => setFormData({ ...formData, mission: text })}
+        placeholder="Enter your mission/promise..."
+      />
+
+      <Text style={styles.inputLabel}>Owner Quote (Vision)</Text>
+      <TextInput
+        style={[styles.input, { height: 60, textAlignVertical: 'top' }]}
+        multiline
+        value={formData.vision}
+        onChangeText={(text) => setFormData({ ...formData, vision: text })}
+        placeholder="Enter a quote..."
+      />
+
+      <TouchableOpacity
+        style={[styles.addButton, { marginTop: 20 }]}
+        onPress={handleSave}
+        disabled={loading}
+      >
+        <Text style={styles.addButtonText}>{loading ? 'Saving...' : 'Save Changes'}</Text>
+      </TouchableOpacity>
+      <View style={{ height: 50 }} />
+    </ScrollView>
+  );
+};
+
+// ==================== CONTACT TAB ====================
+const ContactTab = () => {
+  const [formData, setFormData] = useState({
+    address: '',
+    phone: '',
+    email: '',
+    map_url: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const response = await adminAPI.getContact();
+      if (response.data.info) {
+        setFormData(response.data.info);
+      }
+    } catch (error) {
+      console.error('Error loading contact:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      await adminAPI.updateContact(formData);
+      Alert.alert('Success', 'Contact info updated');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update info');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading && !formData.address) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#ec4899" />
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={styles.tabContent}>
+      <Text style={styles.tabTitle}>Contact Page Management</Text>
+
+      <Text style={styles.inputLabel}>Address</Text>
+      <TextInput
+        style={styles.input}
+        value={formData.address}
+        onChangeText={(text) => setFormData({ ...formData, address: text })}
+        placeholder="Full Address"
+      />
+
+      <Text style={styles.inputLabel}>Phone</Text>
+      <TextInput
+        style={styles.input}
+        value={formData.phone}
+        onChangeText={(text) => setFormData({ ...formData, phone: text })}
+        placeholder="Phone Number"
+      />
+
+      <Text style={styles.inputLabel}>Email</Text>
+      <TextInput
+        style={styles.input}
+        value={formData.email}
+        onChangeText={(text) => setFormData({ ...formData, email: text })}
+        placeholder="Email Address"
+      />
+
+      <Text style={styles.inputLabel}>Map URL</Text>
+      <TextInput
+        style={styles.input}
+        value={formData.map_url}
+        onChangeText={(text) => setFormData({ ...formData, map_url: text })}
+        placeholder="Google Maps Embed URL"
+      />
+
+      <TouchableOpacity
+        style={[styles.addButton, { marginTop: 20 }]}
+        onPress={handleSave}
+        disabled={loading}
+      >
+        <Text style={styles.addButtonText}>{loading ? 'Saving...' : 'Save Changes'}</Text>
+      </TouchableOpacity>
+      <View style={{ height: 50 }} />
+    </ScrollView>
+  );
+};
+
+// ==================== EMPLOYEES TAB ====================
+const EmployeesTab = () => {
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: ''
+  });
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const response = await adminAPI.getEmployees();
+      setEmployees(response.data.employees || []);
+    } catch (error) {
+      console.error('Error loading employees:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAdd = async () => {
+    if (!formData.name || !formData.email || !formData.password) {
+      Alert.alert('Error', 'All fields are required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await adminAPI.addEmployee(formData);
+      Alert.alert('Success', 'Employee added');
+      setModalVisible(false);
+      setFormData({ name: '', email: '', password: '' });
+      loadData();
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed to add employee');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = (id) => {
+    Alert.alert('Delete', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await adminAPI.deleteEmployee(id);
+            loadData();
+          } catch (error) {
+            Alert.alert('Error', 'Failed to delete employee');
+          }
+        }
+      }
+    ]);
+  };
+
+  return (
+    <View style={styles.tabContent}>
+      <Text style={styles.tabTitle}>Employee Management</Text>
+
+      <TouchableOpacity
+        style={styles.addButton}
+        onPress={() => setModalVisible(true)}
+      >
+        <Ionicons name="add" size={20} color="#fff" />
+        <Text style={styles.addButtonText}>Add Employee</Text>
+      </TouchableOpacity>
+
+      <FlatList
+        data={employees}
+        renderItem={({ item }) => (
+          <View style={styles.stockCard}>
+            <View style={styles.stockInfo}>
+              <Text style={styles.stockName}>{item.name}</Text>
+              <Text style={styles.stockQuantity}>{item.email}</Text>
+              <View style={[styles.badge, { backgroundColor: '#e0e0e0', alignSelf: 'flex-start', marginTop: 5 }]}>
+                <Text style={{ fontSize: 10, color: '#666' }}>EMPLOYEE</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.deleteButtonSmall}
+              onPress={() => handleDelete(item.id)}
+            >
+              <Ionicons name="trash-outline" size={20} color="#f44336" />
+            </TouchableOpacity>
+          </View>
+        )}
+        keyExtractor={(item) => item.id.toString()}
+        ListEmptyComponent={
+          <Text style={styles.emptyText}>No employees found</Text>
+        }
+      />
+
+      <Modal visible={modalVisible} animationType="slide" transparent>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Employee</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView>
+              <Text style={styles.inputLabel}>Name</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.name}
+                onChangeText={(text) => setFormData({ ...formData, name: text })}
+                placeholder="Employee Name"
+              />
+
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.email}
+                onChangeText={(text) => setFormData({ ...formData, email: text })}
+                placeholder="Email Address"
+                autoCapitalize="none"
+              />
+
+              <Text style={styles.inputLabel}>Password</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.password}
+                onChangeText={(text) => setFormData({ ...formData, password: text })}
+                placeholder="Password"
+                secureTextEntry
+              />
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.buttonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={handleAdd}
+                disabled={loading}
+              >
+                <Text style={styles.buttonText}>{loading ? 'Adding...' : 'Add Employee'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
 // ==================== STYLES ====================
 const styles = StyleSheet.create({
   container: {
@@ -1884,6 +2312,201 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 15,
     borderRadius: 8,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 5,
+  },
+  notificationMessage: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 5,
+  },
+  notificationDate: {
+    fontSize: 12,
+    color: '#999',
+  },
+  deleteIconButton: {
+    padding: 5,
+  },
+  conversationCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    elevation: 1,
+  },
+  avatarCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#ffe0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 15,
+  },
+  conversationContent: {
+    flex: 1,
+  },
+  conversationName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 5,
+  },
+  conversationMessage: {
+    fontSize: 14,
+    color: '#666',
+  },
+  conversationMeta: {
+    alignItems: 'flex-end',
+  },
+  conversationDate: {
+    fontSize: 12,
+    color: '#999',
+    marginBottom: 5,
+  },
+  unreadBadge: {
+    backgroundColor: '#ec4899',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  unreadText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#999',
+    fontSize: 16,
+    marginTop: 50,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    width: '90%',
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+    marginTop: 10,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#fff',
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 10,
+  },
+  modalCategoryChip: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    backgroundColor: '#fff',
+  },
+  modalCategoryChipActive: {
+    backgroundColor: '#ec4899',
+    borderColor: '#ec4899',
+  },
+  modalCategoryChipText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  modalCategoryChipTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  imageUploadBox: {
+    height: 200,
+    borderWidth: 2,
+    borderColor: '#ec4899',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff0f5',
+    marginBottom: 15,
+    overflow: 'hidden',
+  },
+  uploadedImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  imageUploadPlaceholder: {
+    alignItems: 'center',
+  },
+  imageUploadText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ec4899',
+    marginTop: 10,
+  },
+  imageUploadSubtext: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 5,
+  },
+  takePhotoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#ec4899',
+    borderRadius: 8,
+    marginBottom: 20,
+    gap: 8,
+  },
+  takePhotoText: {
+    color: '#ec4899',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  modalButton: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 8,
     alignItems: 'center',
   },
   cancelButton: {
@@ -1891,6 +2514,46 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: '#ec4899',
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-start',
+  },
+  menuContainer: {
+    width: '70%',
+    height: '100%',
+    backgroundColor: '#fff',
+    padding: 20,
+    paddingTop: Platform.OS === 'android' ? 50 : 40,
+  },
+  menuHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  menuTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  menuItemText: {
+    fontSize: 16,
+    color: '#333',
+    marginLeft: 15,
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginVertical: 10,
   },
 });
 

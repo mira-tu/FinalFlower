@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/database');
 const { adminAuth, adminOnly } = require('../middleware/auth');
+const bcrypt = require('bcryptjs');
 
 // Get all orders (Admin/Employee)
 router.get('/orders', adminAuth, async (req, res) => {
@@ -278,6 +279,118 @@ router.delete('/notifications/:id', adminAuth, async (req, res) => {
         res.json({ success: true, message: 'Notification deleted' });
     } catch (error) {
         console.error('Delete notification error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// =====================================================
+// CONTENT MANAGEMENT
+// =====================================================
+
+// Get About Content
+router.get('/content/about', async (req, res) => {
+    try {
+        const [content] = await pool.query('SELECT * FROM about_content WHERE id = 1');
+        res.json({ success: true, content: content[0] });
+    } catch (error) {
+        console.error('Get about error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// Update About Content
+router.put('/content/about', adminAuth, async (req, res) => {
+    try {
+        const { description, mission, vision } = req.body;
+        await pool.query(
+            'UPDATE about_content SET description = ?, mission = ?, vision = ? WHERE id = 1',
+            [description, mission, vision]
+        );
+        res.json({ success: true, message: 'About content updated' });
+    } catch (error) {
+        console.error('Update about error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// Get Contact Info
+router.get('/content/contact', async (req, res) => {
+    try {
+        const [info] = await pool.query('SELECT * FROM contact_info WHERE id = 1');
+        res.json({ success: true, info: info[0] });
+    } catch (error) {
+        console.error('Get contact error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// Update Contact Info
+router.put('/content/contact', adminAuth, async (req, res) => {
+    try {
+        const { address, phone, email, map_url } = req.body;
+        await pool.query(
+            'UPDATE contact_info SET address = ?, phone = ?, email = ?, map_url = ? WHERE id = 1',
+            [address, phone, email, map_url]
+        );
+        res.json({ success: true, message: 'Contact info updated' });
+    } catch (error) {
+        console.error('Update contact error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// =====================================================
+// EMPLOYEE MANAGEMENT
+// =====================================================
+
+// Get Employees
+router.get('/employees', adminAuth, async (req, res) => {
+    try {
+        // Fetch from admins table where role is employee
+        const [employees] = await pool.query('SELECT id, name, email, role, created_at FROM admins WHERE role = "employee"');
+        res.json({ success: true, employees });
+    } catch (error) {
+        console.error('Get employees error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// Add Employee
+router.post('/employees', adminAuth, async (req, res) => {
+    try {
+        const { name, email, password } = req.body;
+
+        if (!name || !email || !password) {
+            return res.status(400).json({ success: false, message: 'All fields are required' });
+        }
+
+        // Check if email exists
+        const [existing] = await pool.query('SELECT id FROM admins WHERE email = ?', [email]);
+        if (existing.length > 0) {
+            return res.status(400).json({ success: false, message: 'Email already exists' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        await pool.query(
+            'INSERT INTO admins (name, email, password, role) VALUES (?, ?, ?, "employee")',
+            [name, email, hashedPassword]
+        );
+
+        res.status(201).json({ success: true, message: 'Employee added successfully' });
+    } catch (error) {
+        console.error('Add employee error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// Delete Employee
+router.delete('/employees/:id', adminAuth, async (req, res) => {
+    try {
+        await pool.query('DELETE FROM admins WHERE id = ? AND role = "employee"', [req.params.id]);
+        res.json({ success: true, message: 'Employee deleted' });
+    } catch (error) {
+        console.error('Delete employee error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });
