@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useRef } from 'react';
 import RequestSuccessModal from '../components/RequestSuccessModal';
+import { requestAPI, uploadAPI } from '../config/api';
 import '../styles/BookEvent.css';
 
 const initialFormState = {
@@ -72,8 +73,7 @@ const BookEvent = () => {
         event.preventDefault();
 
         try {
-            // Import APIs dynamically
-            const { requestAPI, uploadAPI } = require('../config/api');
+
 
             let photoUrl = null;
 
