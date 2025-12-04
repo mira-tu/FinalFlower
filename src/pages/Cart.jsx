@@ -50,7 +50,7 @@ const Cart = ({ cart, setCart }) => {
     const totalItems = cartItems.filter(item => item.selected).length;
 
     return (
-        <div className="container py-5 mt-5 bg-light" style={{ minHeight: '80vh' }}>
+        <div className="container py-5 mt-5 bg-light" style={{ minHeight: '80vh', overflowX: 'hidden' }}>
             <h2 className="fw-bold mb-4"><i className="fas fa-shopping-cart me-2"></i> Shopping Cart</h2>
 
             {cartItems.length === 0 ? (
@@ -78,17 +78,17 @@ const Cart = ({ cart, setCart }) => {
                     </Link>
                 </div>
             ) : (
-                <div className="row">
+                <div className="row g-3">
                     <div className="col-lg-8">
                         {/* Cart Header */}
                         <div className="card border-0 shadow-sm mb-3 d-none d-md-block">
-                            <div className="card-body py-2">
-                                <div className="row align-items-center text-muted small fw-bold text-uppercase">
+                            <div className="card-body py-2" style={{ overflowX: 'auto' }}>
+                                <div className="row align-items-center text-muted small fw-bold text-uppercase g-0">
                                     <div className="col-5">Product</div>
                                     <div className="col-2 text-center">Unit Price</div>
                                     <div className="col-2 text-center">Quantity</div>
                                     <div className="col-2 text-center">Total Price</div>
-                                    <div className="col-1 text-center">Action</div>
+                                    <div className="col-1 text-center" style={{ whiteSpace: 'nowrap' }}>Action</div>
                                 </div>
                             </div>
                         </div>
@@ -96,8 +96,8 @@ const Cart = ({ cart, setCart }) => {
                         {/* Cart Items */}
                         {cartItems.map(item => (
                             <div key={item.id} className="card border-0 shadow-sm mb-3">
-                                <div className="card-body">
-                                    <div className="row align-items-center">
+                                <div className="card-body" style={{ overflowX: 'auto' }}>
+                                    <div className="row align-items-center g-0">
                                         <div className="col-md-5 d-flex align-items-center mb-3 mb-md-0">
                                             <div className="form-check me-3">
                                                 <input

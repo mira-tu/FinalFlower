@@ -17,20 +17,16 @@ import Checkout from './pages/Checkout'
 import OrderSuccess from './pages/OrderSuccess'
 import OrderTracking from './pages/OrderTracking'
 import Profile from './pages/Profile'
-
-// Admin Components
-import AdminLayout from './pages/admin/AdminLayout'
-import Dashboard from './pages/admin/Dashboard'
-import Messages from './pages/admin/Messages'
-import ShopManager from './pages/admin/ShopManager'
-import OrderManager from './pages/admin/OrderManager'
-import AdminSettings from './pages/admin/AdminSettings'
+import MyOrders from './pages/MyOrders'
+import Notifications from './pages/Notifications'
+import AdminDashboard from './pages/AdminDashboard'
+import AdminSyncWrapper from './components/AdminSyncWrapper'
 
 function AppContent() {
   const location = useLocation();
-  const isAdminRoute = location.pathname.startsWith('/admin');
   const isAuthRoute = ['/login', '/signup'].includes(location.pathname);
-  const showNavbar = !isAdminRoute && !isAuthRoute;
+  const isAdminRoute = location.pathname.startsWith('/admin');
+  const showNavbar = !isAuthRoute && !isAdminRoute;
 
   const [cart, setCart] = useState(() => {
     const savedCart = localStorage.getItem('cart');
@@ -80,17 +76,11 @@ return (
       <Route path="/order-success/:orderId" element={<OrderSuccess />} />
       <Route path="/order-tracking/:orderId" element={<OrderTracking />} />
       <Route path="/profile" element={<Profile />} />
+      <Route path="/my-orders" element={<MyOrders />} />
+      <Route path="/notifications" element={<Notifications />} />
       <Route path="/events" element={<div className="container py-5"><h2>Events Page</h2></div>} />
-
       {/* Admin Routes */}
-      <Route path="/admin" element={<AdminLayout />}>
-        <Route index element={<Dashboard />} />
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="shop" element={<ShopManager />} />
-        <Route path="orders" element={<OrderManager />} />
-        <Route path="messages" element={<Messages />} />
-        <Route path="settings" element={<AdminSettings />} />
-      </Route>
+      <Route path="/admin/dashboard" element={<AdminDashboard />} />
     </Routes>
 
     {showNavbar && <Footer />}
@@ -99,10 +89,15 @@ return (
 }
 
 function App() {
+  // Set your API endpoint here or use environment variable
+  const API_ENDPOINT = import.meta.env.VITE_API_URL || 'https://your-api.com/api';
+  
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <AdminSyncWrapper apiEndpoint={API_ENDPOINT}>
+      <Router>
+        <AppContent />
+      </Router>
+    </AdminSyncWrapper>
   )
 }
 

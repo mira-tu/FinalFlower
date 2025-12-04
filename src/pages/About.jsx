@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import '../styles/About.css';
 import customServiceImg from '../assets/pictures/CUSTOMIZED.jpg';
@@ -7,6 +7,19 @@ import specialServiceImg from '../assets/pictures/SPECIALORDERPAGE.jpg';
 import aboutShopImg from '../assets/pictures/about2.jpg';
 
 const About = () => {
+    const [aboutData, setAboutData] = useState({
+        story: "Jocery's Flower Shop was born from a love for flowers and a commitment to our community. When a beloved local flower shop closed its doors, we saw an opportunity to continue serving its loyal customers, ensuring that our town wouldn't lose its source of fresh, beautifully crafted floral designs.",
+        promise: "We built our shop on the foundation of those relationships, and our roots in the community run deep. Every bouquet we craft and every event we style is a continuation of a legacy of quality, creativity, and connection.",
+        ownerQuote: "Flowers have always been my passion. They have a unique way of telling stories and connecting people. When I saw our community was about to lose its local florist, I knew I had to step in. This shop is my love letter to this town and to the art of floristry."
+    });
+
+    useEffect(() => {
+        const saved = JSON.parse(localStorage.getItem('aboutData') || '{}');
+        if (Object.keys(saved).length > 0) {
+            setAboutData(saved);
+        }
+    }, []);
+
     return (
         <div>
             {/* Hero */}
@@ -30,13 +43,10 @@ const About = () => {
                             <div className="story-content">
                                 <h2 className="mb-4 fw-bold">Our Shop</h2>
                                 <p className="text-muted mb-4">
-                                    Jocery's Flower Shop was born from a love for flowers and a commitment to our community.
-                                    When a beloved local flower shop closed its doors, we saw an opportunity to continue serving
-                                    its loyal customers, ensuring that our town wouldn't lose its source of fresh, beautifully crafted floral designs.
+                                    {aboutData.story}
                                 </p>
                                 <p className="text-muted mb-0">
-                                    We built our shop on the foundation of those relationships, and our roots in the community run deep.
-                                    Every bouquet we craft and every event we style is a continuation of a legacy of quality, creativity, and connection.
+                                    {aboutData.promise}
                                 </p>
                             </div>
                         </div>
@@ -150,9 +160,7 @@ const About = () => {
                     <figure className="text-center">
                         <blockquote className="blockquote">
                             <p className="quote">
-                                "Flowers have always been my passion. They have a unique way of telling stories and connecting people.
-                                When I saw our community was about to lose its local florist, I knew I had to step in.
-                                This shop is my love letter to this town and to the art of floristry."
+                                "{aboutData.ownerQuote}"
                             </p>
                         </blockquote>
                         <figcaption className="blockquote-footer mt-3">

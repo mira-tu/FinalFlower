@@ -9,12 +9,36 @@ const Login = () => {
 
     const handleLogin = (e) => {
         e.preventDefault();
-        // Mock login logic
+        
+        // Check admin login
         if (email === 'admin@gmail.com' && password === 'admin123') {
+            const adminUser = {
+                email: 'admin@gmail.com',
+                role: 'admin',
+                name: 'Admin'
+            };
+            localStorage.setItem('currentUser', JSON.stringify(adminUser));
             navigate('/admin/dashboard');
-        } else {
-            navigate('/');
+            return;
         }
+        
+        // Check employee login
+        const employees = JSON.parse(localStorage.getItem('employees') || '[]');
+        const employee = employees.find(emp => emp.email === email && emp.password === password);
+        
+        if (employee) {
+            const employeeUser = {
+                email: employee.email,
+                role: employee.role,
+                name: employee.name
+            };
+            localStorage.setItem('currentUser', JSON.stringify(employeeUser));
+            navigate('/admin/dashboard');
+            return;
+        }
+        
+        // Regular user login (for now, just navigate to home)
+        navigate('/');
     };
 
     return (

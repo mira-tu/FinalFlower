@@ -29,6 +29,113 @@ const Checkout = ({ setCart }) => {
         province: 'Metro Manila',
         zip: '1100'
     });
+    const [savedAddresses, setSavedAddresses] = useState([]);
+    const [selectedAddressId, setSelectedAddressId] = useState(null);
+    const [showAddAddressModal, setShowAddAddressModal] = useState(false);
+    const [newAddress, setNewAddress] = useState({
+        label: '',
+        name: '',
+        phone: '',
+        address: ''
+    });
+
+    const parseAddressToForm = (addressObj) => {
+        // Parse the address string into form fields
+        // Address format: "123 Sampaguita St., Brgy. Maligaya, Quezon City, Metro Manila 1100"
+        const addressStr = addressObj.address || '';
+        const parts = addressStr.split(',').map(p => p.trim());
+        
+        let street = '';
+        let city = '';
+        let province = '';
+        let zip = '';
+
+        if (parts.length >= 4) {
+            // Format: Street, Barangay, City, Province Zip
+            street = parts[0];
+            city = parts[2];
+            const lastPart = parts[3];
+            // Extract zip code if present (e.g., "Metro Manila 1100")
+            const zipMatch = lastPart.match(/(\d+)$/);
+            if (zipMatch) {
+                zip = zipMatch[1];
+                province = lastPart.replace(/\s*\d+$/, '').trim();
+            } else {
+                province = lastPart;
+            }
+        } else if (parts.length === 3) {
+            // Format: Street, City, Province Zip
+            street = parts[0];
+            city = parts[1];
+            const lastPart = parts[2];
+            const zipMatch = lastPart.match(/(\d+)$/);
+            if (zipMatch) {
+                zip = zipMatch[1];
+                province = lastPart.replace(/\s*\d+$/, '').trim();
+            } else {
+                province = lastPart;
+            }
+        } else if (parts.length === 2) {
+            street = parts[0];
+            city = parts[1];
+        } else {
+            street = addressStr;
+        }
+
+        setAddress({
+            name: addressObj.name || '',
+            phone: addressObj.phone || '',
+            street: street,
+            city: city,
+            province: province,
+            zip: zip
+        });
+    };
+
+    const handleAddressSelect = (addressId) => {
+        const selectedAddr = savedAddresses.find(addr => addr.id === addressId);
+        if (selectedAddr) {
+            parseAddressToForm(selectedAddr);
+            setSelectedAddressId(addressId);
+        }
+    };
+
+    const handleSaveNewAddress = () => {
+        if (!newAddress.label || !address.name || !address.phone || !address.street || !address.city) {
+            alert('Please fill in all required fields (Label, Name, Phone, Street, City)');
+            return;
+        }
+
+        // Construct full address string from form fields
+        const addressParts = [address.street];
+        if (address.city) addressParts.push(address.city);
+        if (address.province) addressParts.push(address.province);
+        const fullAddress = addressParts.join(', ') + (address.zip ? ` ${address.zip}` : '');
+        
+        // Create new address object
+        const newId = savedAddresses.length > 0 ? Math.max(...savedAddresses.map(a => a.id)) + 1 : 1;
+        const addressToSave = {
+            id: newId,
+            label: newAddress.label,
+            name: address.name,
+            phone: address.phone,
+            address: fullAddress,
+            isDefault: savedAddresses.length === 0
+        };
+
+        // Save to localStorage
+        const updated = [...savedAddresses, addressToSave];
+        setSavedAddresses(updated);
+        localStorage.setItem('userAddresses', JSON.stringify(updated));
+
+        // Select the new address
+        parseAddressToForm(addressToSave);
+        setSelectedAddressId(newId);
+
+        // Reset form and close modal
+        setNewAddress({ label: '', name: '', phone: '', address: '' });
+        setShowAddAddressModal(false);
+    };
 
     useEffect(() => {
         const savedCheckoutItems = localStorage.getItem('checkoutItems');
@@ -39,6 +146,30 @@ const Checkout = ({ setCart }) => {
         if (savedOrderType) {
             setOrderType(savedOrderType);
         }
+
+        // Load saved addresses
+        const addresses = JSON.parse(localStorage.getItem('userAddresses') || '[]');
+        if (addresses.length > 0) {
+            setSavedAddresses(addresses);
+            // Set default address if available
+            const defaultAddress = addresses.find(addr => addr.isDefault) || addresses[0];
+            if (defaultAddress) {
+                parseAddressToForm(defaultAddress);
+                setSelectedAddressId(defaultAddress.id);
+            }
+        } else {
+            // If no saved addresses, use default mock addresses
+            const mockAddresses = [
+                { id: 1, label: 'Home', name: 'Maria Santos', phone: '+63 912 345 6789', address: '123 Sampaguita St., Brgy. Maligaya, Quezon City, Metro Manila 1100', isDefault: true },
+                { id: 2, label: 'Office', name: 'Elliana Santos', phone: '+63 912 345 6789', address: '456 Rizal Avenue, Makati Business District, Makati City, Metro Manila 1200', isDefault: false },
+            ];
+            if (mockAddresses.length > 0) {
+                setSavedAddresses(mockAddresses);
+                parseAddressToForm(mockAddresses[0]);
+                setSelectedAddressId(mockAddresses[0].id);
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const subtotal = checkoutItems.reduce((acc, item) => acc + (item.price * (item.qty || 1)), 0);
@@ -84,10 +215,11 @@ const Checkout = ({ setCart }) => {
                 items: checkoutItems,
                 address: deliveryMethod === 'delivery' ? address : null,
                 payment: paymentMethods.find(p => p.id === selectedPayment),
+                paymentStatus: selectedPayment === 'cod' ? 'to_pay' : 'waiting_for_confirmation',
                 subtotal,
                 shippingFee,
                 total,
-                status: 'pending',
+                status: selectedPayment === 'cod' ? 'processing' : 'pending',
                 date: new Date().toISOString(),
                 orderType: orderType,
                 deliveryMethod: deliveryMethod,
@@ -97,6 +229,20 @@ const Checkout = ({ setCart }) => {
             
             const existingOrders = JSON.parse(localStorage.getItem('orders') || '[]');
             localStorage.setItem('orders', JSON.stringify([orderData, ...existingOrders]));
+            
+            // Create notification
+            const notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
+            const newNotification = {
+                id: `notif-${Date.now()}`,
+                type: 'order',
+                title: 'Order Placed Successfully!',
+                message: `Your order #${orderId} has been placed. ${selectedPayment === 'cod' ? 'Payment will be collected on delivery.' : 'Waiting for payment confirmation.'}`,
+                icon: 'fa-shopping-bag',
+                timestamp: new Date().toISOString(),
+                read: false,
+                link: `/order-tracking/${orderId}`
+            };
+            localStorage.setItem('notifications', JSON.stringify([newNotification, ...notifications]));
             
             const currentCart = JSON.parse(localStorage.getItem('cart') || '[]');
             const checkoutItemNames = checkoutItems.map(item => item.name);
@@ -221,10 +367,47 @@ const Checkout = ({ setCart }) => {
                         {/* Delivery Address - Only show if delivery method */}
                         {deliveryMethod === 'delivery' && (
                             <div className="checkout-section">
-                                <h5 className="section-title">
-                                    <i className="fas fa-map-marker-alt"></i>
-                                    Delivery Address
-                                </h5>
+                                <div className="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 className="section-title mb-0">
+                                        <i className="fas fa-map-marker-alt"></i>
+                                        Delivery Address
+                                    </h5>
+                                    <div className="d-flex gap-2">
+                                        <button 
+                                            className="btn btn-sm btn-outline-primary"
+                                            onClick={() => setShowAddAddressModal(true)}
+                                        >
+                                            <i className="fas fa-plus me-1"></i>Add New Address
+                                        </button>
+                                        <Link to="/profile" className="btn btn-sm btn-outline-secondary">
+                                            <i className="fas fa-cog me-1"></i>Manage
+                                        </Link>
+                                    </div>
+                                </div>
+
+                                {savedAddresses.length > 0 && (
+                                    <div className="mb-3">
+                                        <label className="form-label small text-muted fw-bold">Choose from Saved Addresses</label>
+                                        <select
+                                            className="form-select"
+                                            value={selectedAddressId || ''}
+                                            onChange={(e) => {
+                                                if (e.target.value) {
+                                                    handleAddressSelect(parseInt(e.target.value));
+                                                } else {
+                                                    setSelectedAddressId(null);
+                                                }
+                                            }}
+                                        >
+                                            <option value="">Enter new address</option>
+                                            {savedAddresses.map(addr => (
+                                                <option key={addr.id} value={addr.id}>
+                                                    {addr.label} {addr.isDefault && '(Default)'} - {addr.address}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                                 
                                 <div className="row g-3">
                                     <div className="col-md-6">
@@ -540,6 +723,110 @@ const Checkout = ({ setCart }) => {
                                 onClick={() => setShowQRModal(false)}
                             >
                                 Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add New Address Modal */}
+            {showAddAddressModal && (
+                <div className="modal-overlay" onClick={() => setShowAddAddressModal(false)}>
+                    <div className="modal-content-custom" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header-custom">
+                            <h4>Add New Address</h4>
+                            <button className="modal-close" onClick={() => setShowAddAddressModal(false)}>
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div className="modal-body-custom">
+                            <div className="form-group">
+                                <label className="form-label">Label</label>
+                                <input 
+                                    type="text" 
+                                    className="form-control-custom"
+                                    value={newAddress.label}
+                                    onChange={e => setNewAddress({...newAddress, label: e.target.value})}
+                                    placeholder="e.g., Home, Office"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Full Name</label>
+                                <input 
+                                    type="text" 
+                                    className="form-control-custom"
+                                    value={address.name}
+                                    onChange={e => setAddress({...address, name: e.target.value})}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Phone Number</label>
+                                <input 
+                                    type="tel" 
+                                    className="form-control-custom"
+                                    value={address.phone}
+                                    onChange={e => setAddress({...address, phone: e.target.value})}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Street Address</label>
+                                <input 
+                                    type="text" 
+                                    className="form-control-custom"
+                                    value={address.street}
+                                    onChange={e => setAddress({...address, street: e.target.value})}
+                                />
+                            </div>
+                            <div className="row">
+                                <div className="col-md-6">
+                                    <div className="form-group">
+                                        <label className="form-label">City</label>
+                                        <input 
+                                            type="text" 
+                                            className="form-control-custom"
+                                            value={address.city}
+                                            onChange={e => setAddress({...address, city: e.target.value})}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="col-md-6">
+                                    <div className="form-group">
+                                        <label className="form-label">Province</label>
+                                        <input 
+                                            type="text" 
+                                            className="form-control-custom"
+                                            value={address.province}
+                                            onChange={e => setAddress({...address, province: e.target.value})}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Zip Code</label>
+                                <input 
+                                    type="text" 
+                                    className="form-control-custom"
+                                    value={address.zip}
+                                    onChange={e => setAddress({...address, zip: e.target.value})}
+                                />
+                            </div>
+                        </div>
+                        <div className="modal-footer-custom">
+                            <button 
+                                className="btn btn-outline-secondary"
+                                onClick={() => {
+                                    setShowAddAddressModal(false);
+                                    setNewAddress({ label: '', name: '', phone: '', address: '' });
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                className="btn"
+                                style={{ background: 'var(--shop-pink)', color: 'white' }}
+                                onClick={handleSaveNewAddress}
+                            >
+                                Save Address
                             </button>
                         </div>
                     </div>

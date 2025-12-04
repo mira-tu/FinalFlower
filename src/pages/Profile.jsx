@@ -4,17 +4,17 @@ import '../styles/Shop.css';
 
 const orderTabs = [
     { id: 'all', label: 'All Orders' },
-    { id: 'pending', label: 'To Pay' },
+    { id: 'pending', label: 'Pending' },
     { id: 'processing', label: 'Processing' },
     { id: 'ready_for_pickup', label: 'Ready for Pickup' },
-    { id: 'shipped', label: 'To Receive' },
+    { id: 'to_receive', label: 'Out for Delivery' },
     { id: 'claimed', label: 'Claimed' },
-    { id: 'delivered', label: 'Completed' },
+    { id: 'completed', label: 'Completed' },
     { id: 'cancelled', label: 'Cancelled' },
 ];
 
 const menuItems = [
-    { id: 'orders', label: 'My Orders', icon: 'fa-box' },
+    { id: 'orders', label: 'My Orders', icon: 'fa-box', link: '/my-orders' },
     { id: 'messages', label: 'Messages', icon: 'fa-comments' },
     { id: 'addresses', label: 'Addresses', icon: 'fa-map-marker-alt' },
     { id: 'settings', label: 'Account Settings', icon: 'fa-cog' },
@@ -30,11 +30,26 @@ const Profile = () => {
     const [activeMenu, setActiveMenu] = useState('orders');
     const [activeOrderTab, setActiveOrderTab] = useState('all');
     const [orders, setOrders] = useState([]);
-    const [addresses, setAddresses] = useState(mockUserAddresses);
+    const [addresses, setAddresses] = useState(() => {
+        const saved = localStorage.getItem('userAddresses');
+        return saved ? JSON.parse(saved) : mockUserAddresses;
+    });
     const [showAddressModal, setShowAddressModal] = useState(false);
     const [editingAddress, setEditingAddress] = useState(null);
+    const [addressForm, setAddressForm] = useState({
+        label: '',
+        name: '',
+        phone: '',
+        street: '',
+        city: '',
+        province: '',
+        zip: ''
+    });
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [orderToCancel, setOrderToCancel] = useState(null);
+    const [showWaitingModal, setShowWaitingModal] = useState(false);
 
     const user = {
         name: 'Maria Santos',
@@ -44,11 +59,81 @@ const Profile = () => {
     };
 
     useEffect(() => {
+        // Initialize addresses in localStorage if not present
+        if (!localStorage.getItem('userAddresses')) {
+            localStorage.setItem('userAddresses', JSON.stringify(mockUserAddresses));
+        }
+        
+        // Load all orders including regular orders, event bookings, special orders, and customized requests
         const savedOrders = JSON.parse(localStorage.getItem('orders') || '[]');
-        const enrichedOrders = savedOrders.map((order, index) => ({
-            ...order,
-            status: getOrderStatus(order.date, order.deliveryMethod || 'delivery')
-        }));
+        const savedRequests = JSON.parse(localStorage.getItem('requests') || '[]');
+        
+        // Combine regular orders with requests (bookings, special orders, customized)
+        const allOrders = [...savedOrders, ...savedRequests];
+        
+        // Enrich orders with status and paymentStatus if not present
+        const enrichedOrders = allOrders.map((order) => {
+            let enrichedOrder = { ...order };
+            
+            // Add paymentStatus if not present
+            if (!enrichedOrder.paymentStatus) {
+                // If payment method exists and is GCash, mark as waiting for confirmation; otherwise to_pay
+                if (enrichedOrder.payment && enrichedOrder.payment.id === 'gcash') {
+                    enrichedOrder.paymentStatus = 'waiting_for_confirmation';
+                } else {
+                    enrichedOrder.paymentStatus = 'to_pay';
+                }
+            }
+            
+            // Add status if not present or update COD orders to processing
+            if (!enrichedOrder.status) {
+                // Determine status based on order type and date
+                if (enrichedOrder.type === 'booking' || enrichedOrder.type === 'special_order' || enrichedOrder.type === 'customized') {
+                    // New requests start as pending
+                    enrichedOrder.status = 'pending';
+                } else {
+                    // Regular orders use existing logic
+                    const orderDate = new Date(enrichedOrder.date || enrichedOrder.requestDate);
+                    const now = new Date();
+                    const hours = (now - orderDate) / (1000 * 60 * 60);
+                    
+                    if (hours < 2) {
+                        enrichedOrder.status = 'to_pay';
+                    } else if (hours < 8) {
+                        enrichedOrder.status = 'processing';
+                    } else {
+                        if (enrichedOrder.deliveryMethod === 'pickup') {
+                            if (hours < 12) {
+                                enrichedOrder.status = 'ready_for_pickup';
+                            } else if (hours < 24) {
+                                enrichedOrder.status = 'claimed';
+                            } else {
+                                enrichedOrder.status = 'completed';
+                            }
+                        } else {
+                            if (hours < 24) {
+                                enrichedOrder.status = 'to_receive';
+                            } else {
+                                enrichedOrder.status = 'completed';
+                            }
+                        }
+                    }
+                }
+            } else if (enrichedOrder.status === 'pending' && enrichedOrder.payment && enrichedOrder.payment.id === 'cod') {
+                // Move existing COD orders from pending to processing
+                enrichedOrder.status = 'processing';
+            }
+            
+            return enrichedOrder;
+        });
+        
+        // Sort by date (newest first)
+        enrichedOrders.sort((a, b) => {
+            const dateA = new Date(a.date || a.requestDate || 0);
+            const dateB = new Date(b.date || b.requestDate || 0);
+            return dateB - dateA;
+        });
+        
         setOrders(enrichedOrders);
 
         // Load messages
@@ -68,24 +153,14 @@ const Profile = () => {
         }
     }, []);
 
-    const getOrderStatus = (orderDate, deliveryMethod) => {
-        const date = new Date(orderDate);
-        const now = new Date();
-        const hours = (now - date) / (1000 * 60 * 60);
-        
-        if (hours < 2) return 'pending';
-        if (hours < 8) return 'processing';
-        
-        // Different statuses for pickup vs delivery
-        if (deliveryMethod === 'pickup') {
-            if (hours < 12) return 'ready_for_pickup';
-            if (hours < 24) return 'claimed';
-            return 'delivered'; // Completed pickup
-        } else {
-            // Delivery orders
-            if (hours < 24) return 'shipped';
-            return 'delivered';
-        }
+    const getOrderTypeLabel = (type) => {
+        const labels = {
+            booking: 'Event Booking',
+            special_order: 'Special Order',
+            customized: 'Customized Bouquet',
+            regular: 'Regular Order'
+        };
+        return labels[type] || 'Order';
     };
 
     const filteredOrders = activeOrderTab === 'all' 
@@ -96,10 +171,11 @@ const Profile = () => {
         const classes = {
             pending: 'pending',
             processing: 'processing',
-            ready_for_pickup: 'processing', // Use processing style for ready for pickup
-            shipped: 'shipped',
-            claimed: 'shipped', // Use shipped style for claimed
-            delivered: 'delivered',
+            to_pay: 'pending',
+            ready_for_pickup: 'processing',
+            to_receive: 'shipped',
+            claimed: 'shipped',
+            completed: 'delivered',
             cancelled: 'cancelled'
         };
         return classes[status] || 'pending';
@@ -107,12 +183,13 @@ const Profile = () => {
 
     const getStatusLabel = (status) => {
         const labels = {
-            pending: 'To Pay',
-            processing: 'Preparing',
+            pending: 'Pending',
+            processing: 'Processing',
+            to_pay: 'To Pay',
             ready_for_pickup: 'Ready for Pickup',
-            shipped: 'Shipping',
+            to_receive: 'Out for Delivery',
             claimed: 'Claimed',
-            delivered: 'Completed',
+            completed: 'Completed',
             cancelled: 'Cancelled'
         };
         return labels[status] || status;
@@ -120,6 +197,123 @@ const Profile = () => {
 
     const handleTrackOrder = (orderId) => {
         navigate(`/order-tracking/${orderId}`);
+    };
+
+    const handleTrackStatus = (order) => {
+        // Show waiting for approval modal for pending requests
+        if (order.status === 'pending' && order.type) {
+            setShowWaitingModal(true);
+        } else {
+            handleTrackOrder(order.id);
+        }
+    };
+
+    const handleCancelClick = (order) => {
+        setOrderToCancel(order);
+        setShowCancelModal(true);
+    };
+
+    const handleConfirmCancel = () => {
+        if (!orderToCancel) return;
+
+        // Create cancellation notification
+        const notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
+        const orderTypeLabel = orderToCancel.type 
+            ? (orderToCancel.type === 'booking' ? 'Event Booking' 
+                : orderToCancel.type === 'special_order' ? 'Special Order' 
+                : orderToCancel.type === 'customized' ? 'Customized Bouquet' 
+                : 'Request')
+            : 'Order';
+        const orderId = orderToCancel.id ? `#${orderToCancel.id}` : '';
+        
+        const newNotification = {
+            id: `notif-${Date.now()}`,
+            type: 'cancellation',
+            title: `${orderTypeLabel} Cancelled`,
+            message: `Your ${orderTypeLabel.toLowerCase()} ${orderId} has been cancelled successfully.`,
+            icon: 'fa-times-circle',
+            timestamp: new Date().toISOString(),
+            read: false,
+            link: '/my-orders'
+        };
+        localStorage.setItem('notifications', JSON.stringify([newNotification, ...notifications]));
+
+        // Remove from appropriate storage
+        if (orderToCancel.type) {
+            // It's a request (booking, special_order, customized)
+            const requests = JSON.parse(localStorage.getItem('requests') || '[]');
+            const updatedRequests = requests.filter(req => req.id !== orderToCancel.id);
+            localStorage.setItem('requests', JSON.stringify(updatedRequests));
+        } else {
+            // It's a regular order
+            const savedOrders = JSON.parse(localStorage.getItem('orders') || '[]');
+            const updatedOrders = savedOrders.filter(ord => ord.id !== orderToCancel.id);
+            localStorage.setItem('orders', JSON.stringify(updatedOrders));
+        }
+
+        // Reload orders from localStorage
+        const savedOrders = JSON.parse(localStorage.getItem('orders') || '[]');
+        const savedRequests = JSON.parse(localStorage.getItem('requests') || '[]');
+        const allOrders = [...savedOrders, ...savedRequests];
+        
+        // Apply enrichment logic
+        const enrichedOrders = allOrders.map((order) => {
+            let enrichedOrder = { ...order };
+            
+            if (!enrichedOrder.paymentStatus) {
+                if (enrichedOrder.payment && enrichedOrder.payment.id === 'gcash') {
+                    enrichedOrder.paymentStatus = 'waiting_for_confirmation';
+                } else {
+                    enrichedOrder.paymentStatus = 'to_pay';
+                }
+            }
+            
+            if (!enrichedOrder.status) {
+                if (enrichedOrder.type === 'booking' || enrichedOrder.type === 'special_order' || enrichedOrder.type === 'customized') {
+                    enrichedOrder.status = 'pending';
+                } else {
+                    const orderDate = new Date(enrichedOrder.date || enrichedOrder.requestDate);
+                    const now = new Date();
+                    const hours = (now - orderDate) / (1000 * 60 * 60);
+                    
+                    if (hours < 2) {
+                        enrichedOrder.status = 'to_pay';
+                    } else if (hours < 8) {
+                        enrichedOrder.status = 'processing';
+                    } else {
+                        if (enrichedOrder.deliveryMethod === 'pickup') {
+                            if (hours < 12) {
+                                enrichedOrder.status = 'ready_for_pickup';
+                            } else if (hours < 24) {
+                                enrichedOrder.status = 'claimed';
+                            } else {
+                                enrichedOrder.status = 'completed';
+                            }
+                        } else {
+                            if (hours < 24) {
+                                enrichedOrder.status = 'to_receive';
+                            } else {
+                                enrichedOrder.status = 'completed';
+                            }
+                        }
+                    }
+                }
+            } else if (enrichedOrder.status === 'pending' && enrichedOrder.payment && enrichedOrder.payment.id === 'cod') {
+                enrichedOrder.status = 'processing';
+            }
+            
+            return enrichedOrder;
+        });
+        
+        enrichedOrders.sort((a, b) => {
+            const dateA = new Date(a.date || a.requestDate || 0);
+            const dateB = new Date(b.date || b.requestDate || 0);
+            return dateB - dateA;
+        });
+        
+        setOrders(enrichedOrders);
+        setShowCancelModal(false);
+        setOrderToCancel(null);
     };
 
     const handleReorder = (order) => {
@@ -173,7 +367,7 @@ const Profile = () => {
 
     const renderOrdersContent = () => (
         <>
-            <div className="order-tabs">
+            <div className="order-tabs" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {orderTabs.map(tab => {
                     const orderCount = tab.id !== 'all' 
                         ? orders.filter(o => o.status === tab.id).length 
@@ -184,6 +378,7 @@ const Profile = () => {
                             key={tab.id}
                             className={`order-tab ${activeOrderTab === tab.id ? 'active' : ''}`}
                             onClick={() => setActiveOrderTab(tab.id)}
+                            style={{ flexShrink: 0 }}
                         >
                             {tab.label}
                             {tab.id !== 'all' && orderCount > 0 && (
@@ -204,107 +399,253 @@ const Profile = () => {
                     <Link to="/" className="btn-shop-now">Shop Now</Link>
                 </div>
             ) : (
-                filteredOrders.map(order => (
-                    <div key={order.id} className="order-card">
-                        <div className="order-card-header">
-                            <div className="order-id">Order #{order.id}</div>
-                            <div className="d-flex align-items-center gap-3">
-                                <small className="text-muted">
-                                    {new Date(order.date).toLocaleDateString('en-PH', {
-                                        month: 'short',
-                                        day: 'numeric',
-                                        year: 'numeric'
-                                    })}
-                                </small>
-                                <span className={`order-status ${getStatusBadgeClass(order.status)}`}>
-                                    {getStatusLabel(order.status)}
-                                </span>
+                <div className="orders-list">
+                    {filteredOrders.map((order, index) => (
+                        <div key={order.id || `order-${index}`} className="order-card">
+                            <div className="order-card-header">
+                                <div className="d-flex align-items-center gap-3">
+                                    <div className="order-id">
+                                        {order.type === 'booking' && 'Event Booking'}
+                                        {order.type === 'special_order' && 'Special Order'}
+                                        {order.type === 'customized' && 'Customized Bouquet'}
+                                        {!order.type && `Order #${order.id || index + 1}`}
+                                    </div>
+                                    {order.type && (
+                                        <span className="badge bg-info text-white">
+                                            {getOrderTypeLabel(order.type)}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="d-flex align-items-center gap-3 flex-wrap">
+                                    <small className="text-muted">
+                                        {new Date(order.date || order.requestDate).toLocaleDateString('en-PH', {
+                                            month: 'short',
+                                            day: 'numeric',
+                                            year: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                        })}
+                                    </small>
+                                    <span className={`order-status ${getStatusBadgeClass(order.status)}`}>
+                                        {getStatusLabel(order.status)}
+                                    </span>
+                                    {order.paymentStatus && (
+                                        <span className={`badge ${
+                                            order.paymentStatus === 'paid' 
+                                                ? 'bg-success' 
+                                                : order.paymentStatus === 'waiting_for_confirmation' 
+                                                    ? 'bg-info' 
+                                                    : 'bg-warning'
+                                        }`}>
+                                            <i className={`fas ${
+                                                order.paymentStatus === 'paid' 
+                                                    ? 'fa-check-circle' 
+                                                    : order.paymentStatus === 'waiting_for_confirmation'
+                                                        ? 'fa-hourglass-half'
+                                                        : 'fa-clock'
+                                            } me-1`}></i>
+                                            {order.paymentStatus === 'paid' 
+                                                ? 'Paid' 
+                                                : order.paymentStatus === 'waiting_for_confirmation'
+                                                    ? 'Waiting for Confirmation'
+                                                    : 'To Pay'}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                        <div className="order-card-body">
-                            {order.items?.slice(0, 2).map((item, idx) => (
-                                <div key={idx} className="order-item">
-                                    <img 
-                                        src={item.image} 
-                                        alt={item.name}
-                                        className="order-item-img"
-                                        onError={(e) => e.target.src = 'https://via.placeholder.com/70'}
-                                    />
-                                    <div>
-                                        <div className="order-item-name">{item.name}</div>
-                                        <div className="order-item-variant">Pink Wrapper, Classic Bow</div>
-                                        <div className="order-item-qty">x{item.qty || 1}</div>
-                                    </div>
-                                    <div className="order-item-price">
-                                        ₱{(item.price * (item.qty || 1)).toLocaleString()}
-                                    </div>
-                                </div>
-                            ))}
-                            {order.items?.length > 2 && (
-                                <div className="text-muted small mt-2">
-                                    + {order.items.length - 2} more item(s)
-                                </div>
-                            )}
-                            
-                            {/* Delivery/Pickup Information */}
-                            <div className="mt-3 pt-3 border-top">
-                                {order.deliveryMethod === 'pickup' ? (
-                                    <div className="d-flex align-items-start gap-2">
-                                        <i className="fas fa-store mt-1" style={{ color: 'var(--shop-pink)', fontSize: '0.9rem' }}></i>
+                            <div className="order-card-body">
+                                {/* Display order items or request details */}
+                                {order.items && order.items.length > 0 ? (
+                                    <>
+                                        {order.items.slice(0, 2).map((item, idx) => (
+                                            <div key={idx} className="order-item">
+                                                <img 
+                                                    src={item.image || item.photo} 
+                                                    alt={item.name || 'Item'}
+                                                    className="order-item-img"
+                                                    onError={(e) => e.target.src = 'https://via.placeholder.com/70'}
+                                                />
+                                                <div>
+                                                    <div className="order-item-name">{item.name || 'Custom Item'}</div>
+                                                    {item.variant && (
+                                                        <div className="order-item-variant">{item.variant}</div>
+                                                    )}
+                                                    <div className="order-item-qty">x{item.qty || 1}</div>
+                                                </div>
+                                                <div className="order-item-price">
+                                                    ₱{((item.price || order.price || 0) * (item.qty || 1)).toLocaleString()}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {order.items.length > 2 && (
+                                            <div className="text-muted small mt-2">
+                                                + {order.items.length - 2} more item(s)
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    // Display request details for bookings, special orders, and customized
+                                    <div className="order-item">
+                                        {order.photo && (
+                                            <img 
+                                                src={order.photo} 
+                                                alt="Request preview"
+                                                className="order-item-img"
+                                                style={{ objectFit: 'cover' }}
+                                                onError={(e) => e.target.src = 'https://via.placeholder.com/70'}
+                                            />
+                                        )}
                                         <div className="flex-grow-1">
-                                            <div className="small fw-bold mb-1">Pickup Order</div>
-                                            {order.pickupTime && (
-                                                <div className="small text-muted mb-1">
-                                                    <i className="fas fa-clock me-1"></i>
-                                                    Pickup Time: {order.pickupTime}
+                                            <div className="order-item-name">
+                                                {order.type === 'booking' && order.eventType && (
+                                                    <>{order.eventType} Event</>
+                                                )}
+                                                {order.type === 'special_order' && (
+                                                    <>Special Order Request</>
+                                                )}
+                                                {order.type === 'customized' && (
+                                                    <>Customized Bouquet Request</>
+                                                )}
+                                                {!order.type && 'Order Item'}
+                                            </div>
+                                            {order.type === 'booking' && order.venue && (
+                                                <div className="order-item-variant">
+                                                    <i className="fas fa-map-marker-alt me-1"></i>
+                                                    {order.venue}
                                                 </div>
                                             )}
-                                            <div className="small text-muted">
-                                                <i className="fas fa-map-marker-alt me-1"></i>
-                                                Jocery's Flower Shop, 123 Flower St., Quezon City
-                                            </div>
+                                            {order.type === 'special_order' && order.recipientName && (
+                                                <div className="order-item-variant">
+                                                    <i className="fas fa-user me-1"></i>
+                                                    For: {order.recipientName}
+                                                </div>
+                                            )}
+                                            {order.type === 'customized' && order.flower && (
+                                                <div className="order-item-variant">
+                                                    <i className="fas fa-seedling me-1"></i>
+                                                    {order.flower.name} - {order.bundleSize} stems
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="order-item-price">
+                                            ₱{(order.price || order.total || 0).toLocaleString()}
                                         </div>
                                     </div>
-                                ) : (
-                                    order.address && (
+                                )}
+                                
+                                {/* Payment Method Information */}
+                                {order.payment && (
+                                    <div className="mt-3 pt-3 border-top">
                                         <div className="d-flex align-items-start gap-2">
-                                            <i className="fas fa-truck mt-1" style={{ color: 'var(--shop-pink)', fontSize: '0.9rem' }}></i>
+                                            <i className={`fas ${order.payment.icon || 'fa-credit-card'} mt-1`} style={{ color: 'var(--shop-pink)', fontSize: '0.9rem' }}></i>
                                             <div className="flex-grow-1">
-                                                <div className="small fw-bold mb-1">Delivery Address</div>
+                                                <div className="small fw-bold mb-1">Payment Method</div>
                                                 <div className="small text-muted">
-                                                    {order.address.street}, {order.address.city}, {order.address.province} {order.address.zip}
+                                                    {order.payment.name || 'Cash on Delivery'}
                                                 </div>
                                             </div>
                                         </div>
-                                    )
+                                    </div>
                                 )}
+                                
+                                {/* Delivery/Pickup Information */}
+                                {(order.deliveryMethod || order.address) && (
+                                    <div className="mt-3 pt-3 border-top">
+                                        {order.deliveryMethod === 'pickup' ? (
+                                            <div className="d-flex align-items-start gap-2">
+                                                <i className="fas fa-store mt-1" style={{ color: 'var(--shop-pink)', fontSize: '0.9rem' }}></i>
+                                                <div className="flex-grow-1">
+                                                    <div className="small fw-bold mb-1">Pickup Order</div>
+                                                    {order.pickupTime && (
+                                                        <div className="small text-muted mb-1">
+                                                            <i className="fas fa-clock me-1"></i>
+                                                            Pickup Time: {order.pickupTime}
+                                                        </div>
+                                                    )}
+                                                    <div className="small text-muted">
+                                                        <i className="fas fa-map-marker-alt me-1"></i>
+                                                        Jocery's Flower Shop, 123 Flower St., Quezon City
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            order.address && (
+                                                <div className="d-flex align-items-start gap-2">
+                                                    <i className="fas fa-truck mt-1" style={{ color: 'var(--shop-pink)', fontSize: '0.9rem' }}></i>
+                                                    <div className="flex-grow-1">
+                                                        <div className="small fw-bold mb-1">Delivery Address</div>
+                                                        <div className="small text-muted">
+                                                            {typeof order.address === 'string' 
+                                                                ? order.address 
+                                                                : `${order.address.street}, ${order.address.city}, ${order.address.province} ${order.address.zip}`
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="order-card-footer">
+                                <div className="order-total">
+                                    {order.type ? 'Request Total' : 'Order Total'}: <span>₱{(order.total || order.price || 0).toLocaleString()}</span>
+                                </div>
+                                <div className="order-actions">
+                                    {order.status === 'completed' && order.items && (
+                                        <button 
+                                            className="btn-order-action secondary"
+                                            onClick={() => {
+                                                const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+                                                order.items.forEach(item => {
+                                                    const existingItem = cart.find(i => i.name === item.name);
+                                                    if (existingItem) {
+                                                        existingItem.qty += item.qty || 1;
+                                                    } else {
+                                                        cart.push({ ...item });
+                                                    }
+                                                });
+                                                localStorage.setItem('cart', JSON.stringify(cart));
+                                                navigate('/cart');
+                                            }}
+                                        >
+                                            Buy Again
+                                        </button>
+                                    )}
+                                    {order.status === 'pending' && order.type && (
+                                        <button 
+                                            className="btn-order-action primary"
+                                            onClick={() => handleTrackStatus(order)}
+                                        >
+                                            Track Status
+                                        </button>
+                                    )}
+                                    {order.status !== 'cancelled' && order.status !== 'completed' && !(order.status === 'pending' && order.type) && (
+                                        <button 
+                                            className="btn-order-action primary"
+                                            onClick={() => handleTrackOrder(order.id || `order-${index}`)}
+                                        >
+                                            Track Order
+                                        </button>
+                                    )}
+                                    {order.status !== 'cancelled' && order.status !== 'completed' && (
+                                        <button 
+                                            className="btn-order-action danger"
+                                            onClick={() => handleCancelClick(order)}
+                                            style={{ 
+                                                background: '#dc3545', 
+                                                color: 'white',
+                                                border: 'none'
+                                            }}
+                                        >
+                                            Cancel
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                        <div className="order-card-footer">
-                            <div className="order-total">
-                                Order Total: <span>₱{order.total?.toLocaleString()}</span>
-                            </div>
-                            <div className="order-actions">
-                                {order.status === 'delivered' && (
-                                    <button 
-                                        className="btn-order-action secondary"
-                                        onClick={() => handleReorder(order)}
-                                    >
-                                        Buy Again
-                                    </button>
-                                )}
-                                {order.status !== 'cancelled' && (
-                                    <button 
-                                        className="btn-order-action primary"
-                                        onClick={() => handleTrackOrder(order.id)}
-                                    >
-                                        {order.status === 'delivered' ? 'View Details' : 'Track Order'}
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                ))
+                    ))}
+                </div>
             )}
         </>
     );
@@ -318,6 +659,7 @@ const Profile = () => {
                     style={{ background: 'var(--shop-pink)', color: 'white' }}
                     onClick={() => {
                         setEditingAddress(null);
+                        setAddressForm({ label: '', name: '', phone: '', street: '', city: '', province: '', zip: '' });
                         setShowAddressModal(true);
                     }}
                 >
@@ -337,6 +679,55 @@ const Profile = () => {
                                 className="btn btn-link btn-sm text-primary"
                                 onClick={() => {
                                     setEditingAddress(addr);
+                                    // Parse address string into separate fields
+                                    const addressStr = addr.address || '';
+                                    const parts = addressStr.split(',').map(p => p.trim());
+                                    
+                                    let street = '';
+                                    let city = '';
+                                    let province = '';
+                                    let zip = '';
+
+                                    if (parts.length >= 4) {
+                                        // Format: Street, Barangay, City, Province Zip
+                                        street = parts[0];
+                                        city = parts[2];
+                                        const lastPart = parts[3];
+                                        const zipMatch = lastPart.match(/(\d+)$/);
+                                        if (zipMatch) {
+                                            zip = zipMatch[1];
+                                            province = lastPart.replace(/\s*\d+$/, '').trim();
+                                        } else {
+                                            province = lastPart;
+                                        }
+                                    } else if (parts.length === 3) {
+                                        // Format: Street, City, Province Zip
+                                        street = parts[0];
+                                        city = parts[1];
+                                        const lastPart = parts[2];
+                                        const zipMatch = lastPart.match(/(\d+)$/);
+                                        if (zipMatch) {
+                                            zip = zipMatch[1];
+                                            province = lastPart.replace(/\s*\d+$/, '').trim();
+                                        } else {
+                                            province = lastPart;
+                                        }
+                                    } else if (parts.length === 2) {
+                                        street = parts[0];
+                                        city = parts[1];
+                                    } else {
+                                        street = addressStr;
+                                    }
+
+                                    setAddressForm({
+                                        label: addr.label || '',
+                                        name: addr.name || '',
+                                        phone: addr.phone || '',
+                                        street: street,
+                                        city: city,
+                                        province: province,
+                                        zip: zip
+                                    });
                                     setShowAddressModal(true);
                                 }}
                             >
@@ -345,7 +736,11 @@ const Profile = () => {
                             {!addr.isDefault && (
                                 <button 
                                     className="btn btn-link btn-sm text-danger"
-                                    onClick={() => setAddresses(addresses.filter(a => a.id !== addr.id))}
+                                    onClick={() => {
+                                        const updated = addresses.filter(a => a.id !== addr.id);
+                                        setAddresses(updated);
+                                        localStorage.setItem('userAddresses', JSON.stringify(updated));
+                                    }}
                                 >
                                     Delete
                                 </button>
@@ -359,10 +754,12 @@ const Profile = () => {
                         <button 
                             className="btn btn-outline-secondary btn-sm mt-3"
                             onClick={() => {
-                                setAddresses(addresses.map(a => ({
+                                const updated = addresses.map(a => ({
                                     ...a,
                                     isDefault: a.id === addr.id
-                                })));
+                                }));
+                                setAddresses(updated);
+                                localStorage.setItem('userAddresses', JSON.stringify(updated));
                             }}
                         >
                             Set as Default
@@ -528,7 +925,13 @@ const Profile = () => {
                                     <li
                                         key={item.id}
                                         className={`profile-menu-item ${activeMenu === item.id ? 'active' : ''}`}
-                                        onClick={() => setActiveMenu(item.id)}
+                                        onClick={() => {
+                                            if (item.link) {
+                                                navigate(item.link);
+                                            } else {
+                                                setActiveMenu(item.id);
+                                            }
+                                        }}
                                         style={{ cursor: 'pointer' }}
                                     >
                                         <i className={`fas ${item.icon}`}></i>
@@ -573,7 +976,8 @@ const Profile = () => {
                                 <input 
                                     type="text" 
                                     className="form-control-custom"
-                                    defaultValue={editingAddress?.label}
+                                    value={addressForm.label}
+                                    onChange={e => setAddressForm({...addressForm, label: e.target.value})}
                                     placeholder="e.g., Home, Office"
                                 />
                             </div>
@@ -582,7 +986,8 @@ const Profile = () => {
                                 <input 
                                     type="text" 
                                     className="form-control-custom"
-                                    defaultValue={editingAddress?.name}
+                                    value={addressForm.name}
+                                    onChange={e => setAddressForm({...addressForm, name: e.target.value})}
                                 />
                             </div>
                             <div className="form-group">
@@ -590,33 +995,254 @@ const Profile = () => {
                                 <input 
                                     type="tel" 
                                     className="form-control-custom"
-                                    defaultValue={editingAddress?.phone}
+                                    value={addressForm.phone}
+                                    onChange={e => setAddressForm({...addressForm, phone: e.target.value})}
                                 />
                             </div>
                             <div className="form-group">
-                                <label className="form-label">Complete Address</label>
-                                <textarea 
+                                <label className="form-label">Street Address</label>
+                                <input 
+                                    type="text" 
                                     className="form-control-custom"
-                                    rows="3"
-                                    defaultValue={editingAddress?.address}
-                                ></textarea>
+                                    value={addressForm.street}
+                                    onChange={e => setAddressForm({...addressForm, street: e.target.value})}
+                                    placeholder="e.g., 123 Sampaguita St., Brgy. Maligaya"
+                                />
+                            </div>
+                            <div className="row">
+                                <div className="col-md-6">
+                                    <div className="form-group">
+                                        <label className="form-label">City</label>
+                                        <input 
+                                            type="text" 
+                                            className="form-control-custom"
+                                            value={addressForm.city}
+                                            onChange={e => setAddressForm({...addressForm, city: e.target.value})}
+                                            placeholder="e.g., Quezon City"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="col-md-6">
+                                    <div className="form-group">
+                                        <label className="form-label">Province</label>
+                                        <input 
+                                            type="text" 
+                                            className="form-control-custom"
+                                            value={addressForm.province}
+                                            onChange={e => setAddressForm({...addressForm, province: e.target.value})}
+                                            placeholder="e.g., Metro Manila"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Postal Code</label>
+                                <input 
+                                    type="text" 
+                                    className="form-control-custom"
+                                    value={addressForm.zip}
+                                    onChange={e => setAddressForm({...addressForm, zip: e.target.value})}
+                                    placeholder="e.g., 1100"
+                                />
                             </div>
                         </div>
                         <div className="modal-footer-custom">
                             <button 
                                 className="btn btn-outline-secondary"
-                                onClick={() => setShowAddressModal(false)}
+                                onClick={() => {
+                                    setShowAddressModal(false);
+                                    setAddressForm({ label: '', name: '', phone: '', street: '', city: '', province: '', zip: '' });
+                                    setEditingAddress(null);
+                                }}
                             >
                                 Cancel
                             </button>
                             <button 
                                 className="btn"
                                 style={{ background: 'var(--shop-pink)', color: 'white' }}
-                                onClick={() => setShowAddressModal(false)}
+                                onClick={() => {
+                                    if (!addressForm.label || !addressForm.name || !addressForm.phone || !addressForm.street || !addressForm.city) {
+                                        alert('Please fill in all required fields (Label, Name, Phone, Street, City)');
+                                        return;
+                                    }
+
+                                    // Construct full address string from form fields
+                                    const addressParts = [addressForm.street];
+                                    if (addressForm.city) addressParts.push(addressForm.city);
+                                    if (addressForm.province) addressParts.push(addressForm.province);
+                                    const fullAddress = addressParts.join(', ') + (addressForm.zip ? ` ${addressForm.zip}` : '');
+
+                                    let updated;
+                                    if (editingAddress) {
+                                        updated = addresses.map(a => 
+                                            a.id === editingAddress.id 
+                                                ? { 
+                                                    ...a, 
+                                                    label: addressForm.label,
+                                                    name: addressForm.name,
+                                                    phone: addressForm.phone,
+                                                    address: fullAddress
+                                                }
+                                                : a
+                                        );
+                                    } else {
+                                        const newId = addresses.length > 0 ? Math.max(...addresses.map(a => a.id)) + 1 : 1;
+                                        updated = [...addresses, {
+                                            id: newId,
+                                            label: addressForm.label,
+                                            name: addressForm.name,
+                                            phone: addressForm.phone,
+                                            address: fullAddress,
+                                            isDefault: addresses.length === 0
+                                        }];
+                                    }
+                                    setAddresses(updated);
+                                    localStorage.setItem('userAddresses', JSON.stringify(updated));
+                                    setShowAddressModal(false);
+                                    setAddressForm({ label: '', name: '', phone: '', street: '', city: '', province: '', zip: '' });
+                                    setEditingAddress(null);
+                                }}
                             >
                                 Save
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Cancellation Confirmation Modal */}
+            {showCancelModal && (
+                <div 
+                    className="modal-overlay" 
+                    onClick={() => {
+                        setShowCancelModal(false);
+                        setOrderToCancel(null);
+                    }}
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        zIndex: 1000
+                    }}
+                >
+                    <div 
+                        className="modal-content-custom" 
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            backgroundColor: 'white',
+                            padding: '2rem',
+                            borderRadius: '1rem',
+                            textAlign: 'center',
+                            maxWidth: '400px',
+                            width: '90%',
+                            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                        }}
+                    >
+                        <div style={{ fontSize: '3rem', color: '#dc3545', marginBottom: '1rem' }}>
+                            <i className="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <h3 style={{ marginBottom: '1rem', color: '#333' }}>Cancel {orderToCancel?.type ? 'Request' : 'Order'}?</h3>
+                        <p style={{ marginBottom: '1.5rem', color: '#4b5563' }}>
+                            Are you sure you want to cancel this {orderToCancel?.type ? 'request' : 'order'}? This action cannot be undone.
+                        </p>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <button
+                                onClick={() => {
+                                    setShowCancelModal(false);
+                                    setOrderToCancel(null);
+                                }}
+                                style={{
+                                    backgroundColor: 'transparent',
+                                    color: '#4b5563',
+                                    border: '1px solid #d1d5db',
+                                    padding: '0.5rem 1.5rem',
+                                    borderRadius: '9999px',
+                                    cursor: 'pointer',
+                                    fontWeight: '600'
+                                }}
+                            >
+                                Keep {orderToCancel?.type ? 'Request' : 'Order'}
+                            </button>
+                            <button
+                                onClick={handleConfirmCancel}
+                                style={{
+                                    backgroundColor: '#dc3545',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '0.5rem 1.5rem',
+                                    borderRadius: '9999px',
+                                    cursor: 'pointer',
+                                    fontWeight: '600'
+                                }}
+                            >
+                                Yes, Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Waiting for Approval Modal */}
+            {showWaitingModal && (
+                <div 
+                    className="modal-overlay" 
+                    onClick={() => setShowWaitingModal(false)}
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        zIndex: 1000
+                    }}
+                >
+                    <div 
+                        className="modal-content-custom" 
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            backgroundColor: 'white',
+                            padding: '2rem',
+                            borderRadius: '1rem',
+                            textAlign: 'center',
+                            maxWidth: '400px',
+                            width: '90%',
+                            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                        }}
+                    >
+                        <div style={{ fontSize: '3rem', color: '#ff9800', marginBottom: '1rem' }}>
+                            <i className="fas fa-hourglass-half"></i>
+                        </div>
+                        <h3 style={{ marginBottom: '1rem', color: '#333' }}>Waiting for Approval</h3>
+                        <p style={{ marginBottom: '1.5rem', color: '#4b5563' }}>
+                            Your request is currently pending approval from our team. We will review it and get back to you soon.
+                        </p>
+                        <p style={{ marginBottom: '1.5rem', color: '#4b5563', fontSize: '0.9rem' }}>
+                            You will be notified once your request has been processed.
+                        </p>
+                        <button
+                            onClick={() => setShowWaitingModal(false)}
+                            style={{
+                                backgroundColor: 'var(--shop-pink)',
+                                color: 'white',
+                                border: 'none',
+                                padding: '0.5rem 1.5rem',
+                                borderRadius: '9999px',
+                                cursor: 'pointer',
+                                fontWeight: '600'
+                            }}
+                        >
+                            Close
+                        </button>
                     </div>
                 </div>
             )}

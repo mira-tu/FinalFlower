@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import Draggable from 'react-draggable';
 import { FaChevronLeft, FaArrowRotateLeft, FaScroll, FaRibbon, FaSeedling } from 'react-icons/fa6';
+import html2canvas from 'html2canvas';
 import RequestSuccessModal from '../components/RequestSuccessModal';
 import '../styles/Customized.css';
 import darkBlueWrapperImg from '../assets/pictures/darkbluewrapper.png';
@@ -125,6 +126,8 @@ const Customized = ({ addToCart }) => {
     ribbon: null
   });
   const [showModal, setShowModal] = useState(false);
+  const [capturedPhoto, setCapturedPhoto] = useState(null);
+  const previewRef = useRef(null);
 
   const handleBundleSelect = (size) => {
     setSelection((prev) => ({ ...prev, bundleSize: size }));
@@ -157,13 +160,63 @@ const Customized = ({ addToCart }) => {
     return total;
   }, [selection]);
 
-  const handleSubmitRequest = () => {
+  const handleSubmitRequest = async () => {
     if (!selection.flower || !selection.bundleSize) {
       alert('Please complete your bouquet selection!');
       return;
     }
-    // Logic to submit request would go here
-    setShowModal(true);
+
+    try {
+      // Capture screenshot of the preview
+      let photoBase64 = null;
+      if (previewRef.current) {
+        const canvas = await html2canvas(previewRef.current, {
+          backgroundColor: null,
+          scale: 1,
+          logging: false,
+        });
+        photoBase64 = canvas.toDataURL('image/png');
+      }
+
+      // Save request to localStorage
+      const requests = JSON.parse(localStorage.getItem('requests') || '[]');
+      const requestId = `customized-${Date.now()}`;
+      const newRequest = {
+        id: requestId,
+        type: 'customized',
+        status: 'pending',
+        paymentStatus: 'to_pay', // Requests default to 'to_pay' until admin confirms
+        flower: selection.flower,
+        bundleSize: selection.bundleSize,
+        wrapper: selection.wrapper,
+        ribbon: selection.ribbon,
+        photo: photoBase64,
+        price: totalPrice,
+        requestDate: new Date().toISOString(),
+      };
+      requests.push(newRequest);
+      localStorage.setItem('requests', JSON.stringify(requests));
+
+      // Create notification
+      const notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
+      const newNotification = {
+        id: `notif-${Date.now()}`,
+        type: 'request',
+        title: 'Customized Bouquet Request Submitted!',
+        message: `Your customized bouquet (${selection.flower?.name || 'bouquet'}, ${selection.bundleSize} stems) has been submitted and is pending approval.`,
+        icon: 'fa-seedling',
+        timestamp: new Date().toISOString(),
+        read: false,
+        link: '/my-orders'
+      };
+      localStorage.setItem('notifications', JSON.stringify([newNotification, ...notifications]));
+
+      setCapturedPhoto(photoBase64);
+      setShowModal(true);
+    } catch (error) {
+      console.error('Error capturing screenshot:', error);
+      alert('Error submitting request. Please try again.');
+    }
   };
 
   const stemImage = selection.flower?.stemImg || selection.flower?.layerImg || placeholderStemImg;
@@ -217,14 +270,18 @@ const Customized = ({ addToCart }) => {
 
       <RequestSuccessModal
         show={showModal}
-        onClose={() => setShowModal(false)}
+        onClose={() => {
+          setShowModal(false);
+          setCapturedPhoto(null);
+        }}
         message="Your customized bouquet request has been sent to the admin. Please wait for confirmation."
+        photo={capturedPhoto}
       />
 
       <main className="editor-layout">
         <section className="preview-canvas">
           <div className="canvas-container">
-            <div className="bouquet-stage">
+            <div className="bouquet-stage" ref={previewRef}>
               {selection.wrapper && (
                 <img src={selection.wrapper.layerImg} alt="Wrapper" className="layer" style={{ zIndex: 1, top: '50%' }} />
               )}

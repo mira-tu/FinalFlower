@@ -100,6 +100,7 @@ const Home = ({ addToCart }) => {
     const [showWishlistPopup, setShowWishlistPopup] = useState(false);
     const [popupMessage, setPopupMessage] = useState('');
     const [showCartPopup, setShowCartPopup] = useState(false);
+    const [displayProducts, setDisplayProducts] = useState(products);
 
     useEffect(() => {
         const savedWishlist = localStorage.getItem('wishlist');
@@ -109,6 +110,24 @@ const Home = ({ addToCart }) => {
             } catch (e) {
                 console.error('Error parsing wishlist:', e);
             }
+        }
+        
+        // Load products from admin catalogue if available
+        const catalogueProducts = JSON.parse(localStorage.getItem('catalogueProducts') || '[]');
+        if (catalogueProducts.length > 0) {
+            // Merge with default products, prioritizing catalogue products
+            const catalogueMap = new Map(catalogueProducts.map(p => [p.name, p]));
+            const mergedProducts = products.map(p => {
+                const catalogueProduct = catalogueMap.get(p.name);
+                return catalogueProduct ? { ...p, ...catalogueProduct } : p;
+            });
+            // Add new products from catalogue that don't exist in default list
+            catalogueProducts.forEach(cp => {
+                if (!products.find(p => p.name === cp.name)) {
+                    mergedProducts.push(cp);
+                }
+            });
+            setDisplayProducts(mergedProducts);
         }
     }, []);
 
@@ -145,7 +164,7 @@ const Home = ({ addToCart }) => {
     const isInWishlist = (productName) => {
         return wishlist.some(item => item.name === productName);
     };
-    const filteredProducts = products
+    const filteredProducts = displayProducts
         .filter(product => product.name.toLowerCase().includes(searchTerm.toLowerCase()))
         .filter(product => selectedCategory === 'All' || product.category === selectedCategory);
 

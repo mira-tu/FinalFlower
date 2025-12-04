@@ -16,6 +16,7 @@ const BookEvent = () => {
     const [formData, setFormData] = useState(initialFormState);
     const [status, setStatus] = useState(null);
     const [showModal, setShowModal] = useState(false);
+    const [imagePreview, setImagePreview] = useState(null);
     const fileInputRef = useRef(null);
     const minEventDate = useMemo(() => {
         const now = new Date();
@@ -28,8 +29,16 @@ const BookEvent = () => {
     const handleChange = (event) => {
         const { name, value, files } = event.target;
 
-        if (files) {
-            setFormData((prev) => ({ ...prev, [name]: files[0] }));
+        if (files && files[0]) {
+            const file = files[0];
+            setFormData((prev) => ({ ...prev, [name]: file }));
+            
+            // Create preview
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setImagePreview(reader.result);
+            };
+            reader.readAsDataURL(file);
             return;
         }
 
@@ -59,10 +68,57 @@ const BookEvent = () => {
         }
     };
 
-    const handleSubmit = (event) => {
+    const handleSubmit = async (event) => {
         event.preventDefault();
+        
+        // Convert file to base64 for storage
+        let photoBase64 = null;
+        if (formData.inspirationFile) {
+            const reader = new FileReader();
+            photoBase64 = await new Promise((resolve) => {
+                reader.onloadend = () => resolve(reader.result);
+                reader.readAsDataURL(formData.inspirationFile);
+            });
+        }
+
+        // Save request to localStorage
+        const requests = JSON.parse(localStorage.getItem('requests') || '[]');
+        const requestId = `booking-${Date.now()}`;
+        const newRequest = {
+            id: requestId,
+            type: 'booking',
+            status: 'pending',
+            paymentStatus: 'to_pay', // Requests default to 'to_pay' until admin confirms
+            fullName: formData.fullName,
+            eventType: formData.eventType,
+            otherEventType: formData.otherEventType,
+            eventDate: formData.eventDate,
+            venue: formData.venue,
+            details: formData.details,
+            photo: photoBase64,
+            requestDate: new Date().toISOString(),
+            price: 0, // Price to be determined by admin
+        };
+        requests.push(newRequest);
+        localStorage.setItem('requests', JSON.stringify(requests));
+
+        // Create notification
+        const notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
+        const newNotification = {
+            id: `notif-${Date.now()}`,
+            type: 'request',
+            title: 'Event Booking Request Submitted!',
+            message: `Your ${formData.eventType || 'event'} booking request has been submitted and is pending approval.`,
+            icon: 'fa-calendar-check',
+            timestamp: new Date().toISOString(),
+            read: false,
+            link: '/my-orders'
+        };
+        localStorage.setItem('notifications', JSON.stringify([newNotification, ...notifications]));
+
         setShowModal(true);
         setFormData(initialFormState);
+        setImagePreview(null);
 
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
@@ -181,28 +237,77 @@ const BookEvent = () => {
                                             </div>
                                             <div className="col-12">
                                                 <label className="form-label fw-semibold" htmlFor="inspirationFile">Inspiration Gallery</label>
-                                                <div
-                                                    className="upload-box p-5 text-center bg-light rounded-4 border-dashed"
-                                                    role="button"
-                                                    tabIndex={0}
-                                                    onClick={openFilePicker}
-                                                    onKeyDown={handleUploadKeyDown}
-                                                >
-                                                    <i className="fas fa-cloud-upload-alt fa-2x text-primary mb-3"></i>
-                                                    <p className="mb-2">Upload a file or drag and drop</p>
-                                                    <input
-                                                        type="file"
-                                                        id="inspirationFile"
-                                                        name="inspirationFile"
-                                                        className="form-control visually-hidden"
-                                                        ref={fileInputRef}
-                                                        onChange={handleChange}
-                                                    />
-                                                    <label htmlFor="inspirationFile" className="btn btn-outline-primary rounded-pill px-4">Choose File</label>
-                                                    {formData.inspirationFile && (
-                                                        <p className="small text-muted mt-2">Selected: {formData.inspirationFile.name}</p>
-                                                    )}
-                                                </div>
+                                                {imagePreview ? (
+                                                    <div className="position-relative">
+                                                        <img 
+                                                            src={imagePreview} 
+                                                            alt="Preview" 
+                                                            style={{
+                                                                width: '100%',
+                                                                maxHeight: '400px',
+                                                                objectFit: 'contain',
+                                                                borderRadius: '12px',
+                                                                border: '2px solid #e0e0e0',
+                                                                padding: '10px',
+                                                                background: '#f8f9fa'
+                                                            }}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-sm btn-danger position-absolute top-0 end-0 m-2"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setImagePreview(null);
+                                                                setFormData((prev) => ({ ...prev, inspirationFile: null }));
+                                                                if (fileInputRef.current) {
+                                                                    fileInputRef.current.value = '';
+                                                                }
+                                                            }}
+                                                            style={{ zIndex: 10 }}
+                                                        >
+                                                            <i className="fas fa-times"></i>
+                                                        </button>
+                                                        <div className="text-center mt-2">
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-outline-primary btn-sm"
+                                                                onClick={openFilePicker}
+                                                            >
+                                                                <i className="fas fa-edit me-2"></i>Change Image
+                                                            </button>
+                                                        </div>
+                                                        <input
+                                                            type="file"
+                                                            id="inspirationFile"
+                                                            name="inspirationFile"
+                                                            className="form-control visually-hidden"
+                                                            ref={fileInputRef}
+                                                            onChange={handleChange}
+                                                            accept="image/*"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div
+                                                        className="upload-box p-5 text-center bg-light rounded-4 border-dashed"
+                                                        role="button"
+                                                        tabIndex={0}
+                                                        onClick={openFilePicker}
+                                                        onKeyDown={handleUploadKeyDown}
+                                                    >
+                                                        <i className="fas fa-cloud-upload-alt fa-2x text-primary mb-3"></i>
+                                                        <p className="mb-2">Upload an image or drag and drop</p>
+                                                        <input
+                                                            type="file"
+                                                            id="inspirationFile"
+                                                            name="inspirationFile"
+                                                            className="form-control visually-hidden"
+                                                            ref={fileInputRef}
+                                                            onChange={handleChange}
+                                                            accept="image/*"
+                                                        />
+                                                        <label htmlFor="inspirationFile" className="btn btn-outline-primary rounded-pill px-4">Choose File</label>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="col-12 mt-4">
                                                 <button type="submit" className="btn btn-pink w-100 py-3 rounded-pill fw-bold shadow-sm">
